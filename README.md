@@ -17,3 +17,7 @@ signal only for the selection. Although it is working the SNR values are
 incorrect.
 
 NOTE: V2 is better than V1 (for now)
+
+## Basic steps for SNR calculation
+
+Will fill in later…

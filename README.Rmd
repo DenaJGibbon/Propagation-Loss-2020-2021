@@ -20,5 +20,10 @@ Rungan Playbacks V1 and V2 use three sample files and calculate SNR.
 V1- Adds 60-seconds of noise on either side of selection and then calculates SNR over the entire selection.  
 V2- Can add variable duration to calculate noise and then calculate the signal only for the selection. Although it is working the SNR values are incorrect.   
 
-NOTE: V2 is better than V1 (for now)
+NOTE: V2 is better than V1 (for now)  
+
+## Basic steps for SNR calculation
+Will fill in later...
+
+
 
