@@ -13,10 +13,14 @@ temp.wave <-
   )
 
 # Set microphone sensitivity
-Sensitivity <- -108.8945 
+gain <- 30
+
+Sensitivity <- -137.9794 + gain - 0.9151 # dB relative to 1 volt per pascal
+
+# Need to filter before calculating RMS 
 
 # Normalise the values 
-data <- (temp.wave@left) / 2 ^ 15
+data <- (temp.wave@left) / (2 ^ 16/2)
 range(data)
 
 # Calibrate the data with the microphone sensitivity
