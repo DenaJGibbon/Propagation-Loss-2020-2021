@@ -76,6 +76,8 @@ for(a in 1:length(selection.tables)){
   combined.template.table.test <- rbind.data.frame(combined.template.table.test,template.table.temp)
 }
 
+# Check output to make sure it looks right
+head(combined.template.table.test)
 
 # Part 3. Create distance matrix based on GPS points ---------------------------------------------------
 
@@ -115,7 +117,6 @@ BackgroundNoiseRemovedDF.test$time <- substr(BackgroundNoiseRemovedDF.test$time,
 head(BackgroundNoiseRemovedDF.test)
 
 
-
 # Part 4. Calculate absolute receive levels for each selection --------------------
 
 # Create an index for each file
@@ -151,7 +152,6 @@ for(b in 1:length(file.name.index)){
   ListofNoiseWavs <- 
     lapply(1:nrow(singleplayback.df), function(x) cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[x]-timesecs),
                                                                    to=singleplayback.df$Begin.Time..s.[x], output='Wave'))
-  
   
   # Matches each selection with the corresponding noise and selection .wav file and calculate absolute receive level
   for(d in 1:nrow(singleplayback.df)){
@@ -310,7 +310,7 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({ # Ignore the 25 m spacin
       actual.receive.level <- temp.recorder.received$PowerDb
       
       # Assign zeroed receive level to new variable 
-      receive.level <- temp.recorder.received$PowerDb.zero
+      zero.receive.level <- temp.recorder.received$PowerDb.zero
       
       # Assign 'source' level to new variable
       source.level <- temp.recorder.source$PowerDb.zero
@@ -325,7 +325,7 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({ # Ignore the 25 m spacin
       dist.ratio <- log10(distance/dist.to.playback)
       
       # Calculate the 'magic x'
-      magic.x <-  receive.level/dist.ratio
+      magic.x <-  zero.receive.level/dist.ratio
       
       # Assign sound type to new variable
       Sound.type <- temp.recorder.received$Sound.Type
@@ -337,7 +337,7 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({ # Ignore the 25 m spacin
       date <- temp.recorder.received$date
       
       # Combine all into a new temp dataframe
-      temp.df <- cbind.data.frame(receive.level,actual.receive.level,source.level,distance,Sound.type,time,date,magic.x,noise.level)
+      temp.df <- cbind.data.frame(zero.receive.level,actual.receive.level,source.level,distance,Sound.type,time,date,magic.x,noise.level)
       
       # Combine all observations into one dataframe
       observed.prop.loss <- rbind.data.frame(observed.prop.loss,temp.df)
@@ -370,13 +370,19 @@ ggpubr::ggscatter(data = observed.prop.loss.subset,x='distance', y='actual.recei
                   add = c("loess"),title='')+
   xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
 
+# Plot observed change in receive level by distance for all signals
+ggpubr::ggscatter(data = observed.prop.loss,x='distance', y='actual.receive.level',
+                  color='Sound.category',
+                  facet.by = 'Sound.category',xlim=c(0,300), #ylim=c(-70,-20),
+                  add = c("loess"),title='')+
+  xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
 
 
 # Part 6.  Observed results relative to spherical and cylindrical  --------
 
 # We can subset by sound category- here it is by "Hfunstart"
-# playback.line.1 <- median(na.omit(subset(observed.prop.loss,
-#                                      Sound.category=="Hfunstart")$magic.x)) 
+playback.line.1 <- median(na.omit(subset(observed.prop.loss,
+                                     Sound.category=="Hfunstart")$magic.x))
 
 # Or we can combine all of our data
 playback.line.1 <- median(na.omit(observed.prop.loss$magic.x))
