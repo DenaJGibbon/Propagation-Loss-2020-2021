@@ -12,11 +12,14 @@ library(tuneR)
 library(stringr)
 library(plyr)
 library(ggpubr)
+library(geosphere)
+library(plotKML)
 
 # Part 2. Set up data -------------------------------------------------------------
 
 # Playback template table
-SelectionIDs <- read.delim("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/SelectionLabels_S00974_20190811_101922_updated.txt")
+SelectionIDs <- 
+  read.delim("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/SelectionLabels_S00974_20190811_101922_updated.txt")
 
 # Sound file location
 SoundFiles.input <- 
@@ -171,7 +174,7 @@ for(b in 1:length(file.name.index)){
    # Assign a new name
    w.dn.filt <- NoiseWavetemp
    
-   # Calculate the duration of ths sound file
+   # Calculate the duration of the sound file
    dur.seconds <- duration(w.dn.filt)
    
    # Divide into evenly spaced bins (duration specified above)
@@ -215,11 +218,10 @@ for(b in 1:length(file.name.index)){
    SignalWavtemp <-  ListofWavs[[d]]
       
    # Filter to the frequency range of the selection
-     w.dn.filt <- bwfilter(SignalWavtemp, from=Selectiontemp$Low.Freq..Hz., to=Selectiontemp$High.Freq..Hz.)
+   w.dn.filt <- bwfilter(SignalWavtemp, from=Selectiontemp$Low.Freq..Hz., to=Selectiontemp$High.Freq..Hz.)
      
-    
      # Normalise the values 
-      data <- w.dn.filt/ 2 ^ 15
+      data <- w.dn.filt/ (2 ^ 16/2)
       
       # Calibrate the data with the microphone sensitivity
       data_cal <- data/ (10^(Sensitivity/20))
@@ -230,8 +232,11 @@ for(b in 1:length(file.name.index)){
       # Subset the correspond row from the selection table
       Selectiontemp <- singleplayback.df[d,]
       
-      # Calculate absolute receive level in dB
+      # Calculate absolute receive level of the signal in the selection in dB (subtracting noise)
       Selectiontemp$PowerDb <- 20 * log10((signal.value-noise.value))
+      
+      # Absolute noise levels
+      20 * log10((signal.value))
       
       # Calculate noise level in dB
       Selectiontemp$NoisevalueDb <- 20 * log10((noise.value))
@@ -283,9 +288,9 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({ # Ignore the 25 m spacin
       small.sample.playback.test <- rbind.data.frame(small.sample.playback.test,temp.table )
     }
     
-    # Create an index indicating which recorder and which selection
-    small.sample.playback.test$selection.index <- 
-      paste(small.sample.playback.test$recorder,small.sample.playback.test$Selection,sep='_')
+    # # Create an index indicating which recorder and which selection
+    # small.sample.playback.test$selection.index <- 
+    #   paste(small.sample.playback.test$recorder,small.sample.playback.test$Selection,sep='_')
     
     # Create an index for each unique recorder in the new subset dataset
     recorder.index.test <- unique(small.sample.playback.test$recorder)
@@ -389,15 +394,15 @@ playback.line.1 <- median(na.omit(observed.prop.loss$magic.x))
   
 # Set the equations for observed, spherical and cylindrical spreading
 eq1 <- function(x){ playback.line.1*log10(x)}
-eq2 <- function(x){ -10*log10(x)}
-eq3 <- function(x){ -20*log10(x)}
+eq2 <- function(x){ -20*log10(x)}
+eq3 <- function(x){ -10*log10(x)}
 
 # Create a series of points based on the above equations
-Estimated1 <- cbind.data.frame(seq(1:1000),eq1(1:1000),rep('Estimated',1000))
+Estimated1 <- cbind.data.frame(seq(1:500),eq1(1:500),rep('Estimated',500))
 colnames(Estimated1) <- c("X","Value","Label")
-Spherical <- cbind.data.frame(seq(1:1000),eq2(1:1000),rep('Spherical',1000))
+Spherical <- cbind.data.frame(seq(1:500),eq2(1:500),rep('Spherical',500))
 colnames(Spherical) <- c("X","Value","Label")
-Cylindrical <-  cbind.data.frame(seq(1:1000),eq3(1:1000),rep('Cylindrical',1000))
+Cylindrical <-  cbind.data.frame(seq(1:500),eq3(1:500),rep('Cylindrical',500))
 colnames(Cylindrical) <- c("X","Value","Label")
 
 # Combine all three into a single dataframe
@@ -410,9 +415,25 @@ ggplot(data = attenuation.df,aes(x=X, y=Value,group=Label, colour=Label,linetype
   scale_linetype_manual(values=c( "solid","twodash", "dotted"))+
   theme(axis.text=element_text(size=12), axis.title=element_text(size=12,face="bold"))+
   xlab("Distance from source (m)") + ylab("Amplitude (dB)")+
+  ylim(-70,0)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 
 
 
+# Plot magic x by distance
+observed.prop.loss.x.dist <- subset(observed.prop.loss,
+                                    Sound.category=="Hfunstart")
+
+plot(observed.prop.loss.x.dist$magic.x ~ observed.prop.loss.x.dist$distance,
+     xlab='Distance (m)', ylab='Magic x')
+
+plot(observed.prop.loss.x.dist$noise.level ~ observed.prop.loss.x.dist$distance,
+     xlab='Distance (m)', ylab='Noise')
+
+ggpubr::ggscatter(data = observed.prop.loss.x.dist,x='distance', y='actual.receive.level',
+                  color='Sound.type',
+                  #xlim=c(0,300), #ylim=c(-70,-20),
+                  title='')+
+  xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
 
 
