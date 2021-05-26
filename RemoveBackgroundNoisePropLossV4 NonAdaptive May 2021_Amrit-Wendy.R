@@ -248,7 +248,8 @@ for(b in 1:length(file.name.index)){
    # Isolate the corresponding .wav file for the playback selection
    SignalWavtemp <-  ListofWavs[[d]]
       
-   # Filter to the frequency range of the selection
+   # Filter to the frequency range of the selection #
+   # Error: Selectiontemp not found
    w.dn.filt <- bwfilter(SignalWavtemp, 
                          from=Selectiontemp$Low.Freq..Hz., 
                          to=Selectiontemp$High.Freq..Hz.,n=3)
