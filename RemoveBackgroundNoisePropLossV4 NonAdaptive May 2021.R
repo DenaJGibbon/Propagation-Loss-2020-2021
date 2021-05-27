@@ -117,33 +117,33 @@ dist.mat
 
 
 # Combine all into a single dataframe
-BackgroundNoiseRemovedDF.test <- merge(combined.template.table.test,small.gps.df,by='recorder')
+BackgroundNoiseRemovedDFMaliau.test <- merge(combined.template.table.test,small.gps.df,by='recorder')
 
 # Add a date column
-BackgroundNoiseRemovedDF.test$date <- str_split_fixed(BackgroundNoiseRemovedDF.test$file.name,pattern = '_',n=3)[,2]
+BackgroundNoiseRemovedDFMaliau.test$date <- str_split_fixed(BackgroundNoiseRemovedDFMaliau.test$file.name,pattern = '_',n=3)[,2]
 
 # Add a time column
-time.temp <- str_split_fixed(BackgroundNoiseRemovedDF.test$file.name,pattern = '_',n=3)[,3]
-BackgroundNoiseRemovedDF.test$time <- str_split_fixed(time.temp,pattern = '.txt',n=2)[,1]
-BackgroundNoiseRemovedDF.test$time <- substr(BackgroundNoiseRemovedDF.test$time,start=1,stop=4)
+time.temp <- str_split_fixed(BackgroundNoiseRemovedDFMaliau.test$file.name,pattern = '_',n=3)[,3]
+BackgroundNoiseRemovedDFMaliau.test$time <- str_split_fixed(time.temp,pattern = '.txt',n=2)[,1]
+BackgroundNoiseRemovedDFMaliau.test$time <- substr(BackgroundNoiseRemovedDFMaliau.test$time,start=1,stop=4)
 
 # Check structure of resulting data frame
-head(BackgroundNoiseRemovedDF.test)
+head(BackgroundNoiseRemovedDFMaliau.test)
 
 
 # Part 4. Calculate absolute receive levels for each selection --------------------
 
 # Create an index for each file
-file.name.index <- unique(BackgroundNoiseRemovedDF.test$file.name)
+file.name.index <- unique(BackgroundNoiseRemovedDFMaliau.test$file.name)
 
 # Create an empty dataframe to add to iteratively in the loop
-BackgroundNoiseRemovedDF <- data.frame()
+BackgroundNoiseRemovedDFMaliau <- data.frame()
 
 # The loop to calculate inband power (after subtracting the noise) for each selection from the wave file
 for(b in 1:length(file.name.index)){
 
   # Subset by recorder and date index
-  singleplayback.df <- subset(BackgroundNoiseRemovedDF.test,file.name==file.name.index[b])
+  singleplayback.df <- subset(BackgroundNoiseRemovedDFMaliau.test,file.name==file.name.index[b])
   
   singleplayback.df <-singleplayback.df[-PulsesToRemove,]
   # Create sound file path
@@ -177,6 +177,9 @@ for(b in 1:length(file.name.index)){
   for(d in 1:nrow(singleplayback.df)){
     
     print(d)
+    
+    # Subset the correspond row from the selection table
+    Selectiontemp <- singleplayback.df[d,]
     
     noise.value.list <- list()
     
@@ -259,8 +262,6 @@ for(b in 1:length(file.name.index)){
       # Calculate RMS
       signal.value <- rms(data_cal)
       
-      # Subset the correspond row from the selection table
-      Selectiontemp <- singleplayback.df[d,]
       
       # Calculate absolute receive level of the signal in the selection in dB (subtracting noise)
       Selectiontemp$PowerDb <- 20 * log10((signal.value-noise.value))
@@ -274,7 +275,7 @@ for(b in 1:length(file.name.index)){
       print(Selectiontemp)
       
       # Combine into a dataframe
-      BackgroundNoiseRemovedDF <- rbind.data.frame(BackgroundNoiseRemovedDF,Selectiontemp)
+      BackgroundNoiseRemovedDFMaliau <- rbind.data.frame(BackgroundNoiseRemovedDFMaliau,Selectiontemp)
   }
   
   }
@@ -284,11 +285,11 @@ for(b in 1:length(file.name.index)){
 # Part 5. Propagation Loss --------------------------------------------------------
 
 # Create an index with unique date/time combinations
-date.time.combo <- paste(BackgroundNoiseRemovedDF$date,BackgroundNoiseRemovedDF$time,sep='_')
+date.time.combo <- paste(BackgroundNoiseRemovedDFMaliau$date,BackgroundNoiseRemovedDFMaliau$time,sep='_')
 unique.date.time.combo <- unique(date.time.combo)
 
 # Create empty dataframe for propagation loss
-observed.prop.loss <- data.frame()
+observed.prop.lossMaliau <- data.frame()
 
 # Loop to calculate propagation loss
 for(z in 1:length(unique.date.time.combo)) { tryCatch({ 
@@ -298,7 +299,7 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({
     str_split_fixed(unique.date.time.combo[z],pattern = '_',n=2) 
   
   # Subset data frame to focus on unique date/time
-  temp.playback <- subset(BackgroundNoiseRemovedDF, date==temp.date.time.subset[,1] & time==temp.date.time.subset[,2])
+  temp.playback <- subset(BackgroundNoiseRemovedDFMaliau, date==temp.date.time.subset[,1] & time==temp.date.time.subset[,2])
   
   # See how many unique playbacks
   unique(temp.playback$file.name)
@@ -372,7 +373,7 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({
       temp.df <- cbind.data.frame(zero.receive.level,actual.receive.level,source.level,distance,Sound.type,time,date,magic.x,noise.level)
       
       # Combine all observations into one dataframe
-      observed.prop.loss <- rbind.data.frame(observed.prop.loss,temp.df)
+      observed.prop.lossMaliau <- rbind.data.frame(observed.prop.lossMaliau,temp.df)
     }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
     }
     
@@ -382,20 +383,25 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({
 }
 
 # Take the median value for replicate selections
-RecorderDateTime.index <- unique(paste(observed.prop.loss$distance,
-                                       observed.prop.loss$date,
-                                       observed.prop.loss$time,sep='_'))
+RecorderDateTime.index <- unique(paste(observed.prop.lossMaliau$distance,
+                                       observed.prop.lossMaliau$date,
+                                       observed.prop.lossMaliau$time,sep='_'))
 
-observed.prop.loss$RecorderDateTime <- unique(paste(#observed.prop.loss$distance,
-                                       observed.prop.loss$date,
-                                       observed.prop.loss$time,sep='_'))
+observed.prop.lossMaliau$RecorderDateTime <- unique(paste(#observed.prop.lossMaliau$distance,
+                                       observed.prop.lossMaliau$date,
+                                       observed.prop.lossMaliau$time,sep='_'))
 
-observed.prop.loss$sound.type.for.median <- str_split_fixed (observed.prop.loss$Sound.type, pattern = '_',n=2)[,2]
+observed.prop.lossMaliau$sound.type.for.median <- str_split_fixed (observed.prop.lossMaliau$Sound.type, pattern = '_',n=2)[,2]
 
-observed.prop.loss.median.df <- data.frame()
+# Isolate sound category names
+observed.prop.lossMaliau$Sound.category <- 
+  str_split_fixed(observed.prop.lossMaliau$Sound.type, pattern = '_',n=3)[,2]
+
+
+observed.prop.lossMaliau.median.df <- data.frame()
 
 for(a in 1:length(RecorderDateTime.index)){
- temp.observed <-  subset(observed.prop.loss,RecorderDateTime==RecorderDateTime[a])
+ temp.observed <-  subset(observed.prop.lossMaliau,RecorderDateTime==RecorderDateTime[a])
  
  sound.type.index <- 
    unique(temp.observed$sound.type.for.median  )
@@ -415,7 +421,7 @@ for(a in 1:length(RecorderDateTime.index)){
                            "RecorderDateTime", "sound.type.for.median", "Sound.category")]
    
     temp.subset.distance$median.x <- median.x
-    observed.prop.loss.median.df <- rbind.data.frame(observed.prop.loss.median.df,temp.subset.distance)
+    observed.prop.lossMaliau.median.df <- rbind.data.frame(observed.prop.lossMaliau.median.df,temp.subset.distance)
    }
  }
    
@@ -423,30 +429,29 @@ for(a in 1:length(RecorderDateTime.index)){
 
 
 
-# Isolate sound category names
-observed.prop.loss$Sound.category <- 
-  str_split_fixed(observed.prop.loss$Sound.type, pattern = '_',n=3)[,2]
-
 # Subset so we focus on primates
-observed.prop.loss.subset <- subset(observed.prop.loss,
-                                    Sound.category=="Hfunstart" |Sound.category=="Hfuntrill" |Sound.category=="Halb"
+observed.prop.lossMaliau.subset <- subset(observed.prop.lossMaliau,
+                                    Sound.category=="Hfunstart" |Sound.category=="Hfuntrill" 
+                                    |Sound.category=="Halbpeak"
+                                    |Sound.category=="Halbend"
                                     |Sound.category=="Pmor"|Sound.category=="Pwur") #
 # Give more informative names
-observed.prop.loss.subset$Sound.category <- 
-  plyr::revalue(observed.prop.loss.subset$Sound.category,
-                c(Hfunstart = "Gibbon Sabah Intro",
+observed.prop.lossMaliau.subset$Sound.category <- 
+  plyr::revalue(observed.prop.lossMaliau.subset$Sound.category,
+                c(Halbpeak= "Gibbon C. Kali Peak",Halbend= "Gibbon C. Kali End",
+                  Hfunstart = "Gibbon Sabah Intro",
  Hfuntrill = "Gibbon Sabah Trill",Pmor="Orangutan Sabah", 
- Halb="Gibbon C. Kali",Pwur="Orangutan C. Kali"))
+ Pwur="Orangutan C. Kali"))
 
 # Plot observed change in receive level by distance
-ggpubr::ggscatter(data = observed.prop.loss.subset,x='distance', y='actual.receive.level',
+ggpubr::ggscatter(data = observed.prop.lossMaliau.subset,x='distance', y='actual.receive.level',
                   color='Sound.category',
                   facet.by = 'Sound.category',xlim=c(0,300), #ylim=c(-70,-20),
                   add = c("loess"),title='')+
   xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
 
 # Plot observed change in receive level by distance for all signals
-ggpubr::ggscatter(data = observed.prop.loss,x='distance', y='actual.receive.level',
+ggpubr::ggscatter(data = observed.prop.lossMaliau,x='distance', y='actual.receive.level',
                   color='Sound.type',
                   facet.by = 'Sound.type',xlim=c(0,300), #ylim=c(-70,-20),
                   add = c("loess"),title='')+
@@ -454,14 +459,14 @@ ggpubr::ggscatter(data = observed.prop.loss,x='distance', y='actual.receive.leve
 
 
 # Part 6.  Observed results relative to spherical and cylindrical  --------
-hist(observed.prop.loss.subset$magic.x)
+hist(observed.prop.lossMaliau.subset$magic.x)
 
 # We can subset by sound category- here it is by "Hfunstart"
-playback.line.1 <- median(na.omit(subset(observed.prop.loss,
-                                     Sound.category=="Hfunstart")$magic.x))
+playback.line.1 <- median(na.omit(subset(observed.prop.lossMaliau,
+                                     Sound.category=="Pwur")$magic.x))
 
 # Or we can combine all of our data
-playback.line.1 <- median(na.omit(observed.prop.loss$magic.x))
+#playback.line.1 <- median(na.omit(observed.prop.lossMaliau$magic.x))
   
 # Set the equations for observed, spherical and cylindrical spreading
 eq1 <- function(x){ playback.line.1*log10(x)}
@@ -476,18 +481,6 @@ colnames(Spherical) <- c("X","Value","Label")
 Cylindrical <-  cbind.data.frame(seq(1:500),eq3(1:500),rep('Cylindrical',500))
 colnames(Cylindrical) <- c("X","Value","Label")
 
-# Create series of points for each estimate
-
-
-SeriesForPlot <- data.frame()
-for(x in 1:nrow(observed.prop.loss)){
-  temp.x <- observed.prop.loss[x,]$magic.x
-  eqtemp <- function(x){ temp.x*log10(x)}
-  # Create a series of points based on the above equations
-  estimatedtemp <- cbind.data.frame(seq(1:500),eqtemp(1:500),rep(paste('Estimated',x,sep='_'),500))
-  colnames(estimatedtemp) <- c("X","Value","Label")
-  SeriesForPlot <- rbind.data.frame(SeriesForPlot,estimatedtemp)
-}
 
 # Combine all three into a single dataframe
 attenuation.df <- rbind.data.frame(Estimated1,Spherical,Cylindrical)
@@ -502,27 +495,17 @@ ggplot(data = attenuation.df,aes(x=X, y=Value,group=Label, colour=Label,linetype
   ylim(-70,0)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 
-ggplot(data = SeriesForPlot,aes(x=X, y=Value,group=Label))+
-  geom_line() +theme_bw() + scale_color_manual(values = c("black","red","darkgray"))+
-  theme(legend.title = element_blank())+ 
-  #scale_linetype_manual(values=c( "solid","twodash", "dotted"))+
-  theme(axis.text=element_text(size=12), axis.title=element_text(size=12,face="bold"))+
-  xlab("Distance from source (m)") + ylab("Amplitude (dB)")+
-  ylim(-70,0)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
-
-
 # Plot magic x by distance
-observed.prop.loss.x.dist <- subset(observed.prop.loss,
-                                    Sound.category=="Hfuntrill")
+observed.prop.lossMaliau.x.dist <- subset(observed.prop.lossMaliau,
+                                    Sound.category=="Halbstart")
 
-plot(observed.prop.loss.x.dist$magic.x ~ observed.prop.loss.x.dist$distance,
+plot(observed.prop.lossMaliau.x.dist$magic.x ~ observed.prop.lossMaliau.x.dist$distance,
      xlab='Distance (m)', ylab='Magic x')
 
-plot(observed.prop.loss.x.dist$noise.level ~ observed.prop.loss.x.dist$distance,
+plot(observed.prop.lossMaliau.x.dist$noise.level ~ observed.prop.lossMaliau.x.dist$distance,
      xlab='Distance (m)', ylab='Noise')
 
-ggpubr::ggscatter(data = observed.prop.loss.x.dist,x='distance', y='actual.receive.level',
+ggpubr::ggscatter(data = observed.prop.lossMaliau.x.dist,x='distance', y='actual.receive.level',
                   color='Sound.type',
                   #xlim=c(0,300), #ylim=c(-70,-20),
                   title='')+

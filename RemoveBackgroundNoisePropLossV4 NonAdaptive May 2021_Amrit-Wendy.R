@@ -91,7 +91,7 @@ for(a in 1:length(selection.tables)){
 }
 
 # Check output to make sure it looks right
-head(combined.template.table.test)
+tail(combined.template.table.test)
 
 # Part 3. Create distance matrix based on GPS points ---------------------------------------------------
 
@@ -282,8 +282,139 @@ for(b in 1:length(file.name.index)){
     }
     
   }
-}
+  
+  if(nrow(singleplayback.df)!=nrow(SelectionIDs)){ 
+    # Use the Raven selection table to cut each selection into an individual .wav file
+    ListofWavs <- 
+      lapply(1:nrow(singleplayback.df), function(x) cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[x]- signal.time.buffer),
+                                                         to= (singleplayback.df$End.Time..s.[x]+signal.time.buffer), output='Wave'))
+    
+    
+    # Use the Raven selection table to extract a longer duration .wav file for noise
+    NoiseWav1 <- cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[1]-timesecs),
+                      to=singleplayback.df$Begin.Time..s.[1], output='Wave')
+    
+    NoiseWav2 <- cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[nrow(singleplayback.df)]),
+                      to= (singleplayback.df$Begin.Time..s.[nrow(singleplayback.df)]+timesecs), output='Wave')
+    
+    NoiseWavList <- list(NoiseWav1,NoiseWav2)
+    
+    # Matches each selection with the corresponding noise and selection .wav file and calculate absolute receive level
+    for(d in 1:nrow(singleplayback.df)){
+      
+      print(d)
+      
+      # Subset the correspond row from the selection table
+      Selectiontemp <- singleplayback.df[d,]
+      
+      noise.value.list <- list()
+      
+      for(e in 1:length(NoiseWavList)){
+        
+        # Take the corresponding noise file
+        NoiseWavetemp <- NoiseWavList[[e]]
+        
+        # Filter to the frequency range of the selection
+        filteredwaveform<- bwfilter(NoiseWavetemp, 
+                                    from=Selectiontemp$Low.Freq..Hz., 
+                                    to=Selectiontemp$High.Freq..Hz.,
+                                    n=3)
+        
+        # Add the filtered waveform back into the .wav file
+        NoiseWavetemp@left <- c(filteredwaveform)
+        
+        # Assign a new name
+        w.dn.filt <- NoiseWavetemp
+        
+        # Calculate the duration of the sound file
+        dur.seconds <- duration(w.dn.filt)
+        
+        # Divide into evenly spaced bins (duration specified above)
+        bin.seq <- seq(from=0, to=dur.seconds, by=noise.subsamples)
+        
+        # Create a list of all the noise subsample bins to estimate noise
+        bin.seq.length <- length(bin.seq)-1
+        
+        # Create a list of shorter sound files to calculate noise
+        subsamps.1sec <- lapply(1:bin.seq.length, function(i) 
+          extractWave(w.dn.filt, 
+                      from=as.numeric(bin.seq[i]), to=as.numeric(bin.seq[i+1]), 
+                      xunit = c("time"),plot=F,output="Wave"))
+        
+        
+        # Calculate noise for each noise time bin 
+        noise.list <- list()
+        
+        for (k in 1:length(subsamps.1sec)) { 
+          
+          # Read in .wav file 
+          temp.wave <- subsamps.1sec[[k]]
+          
+          # Normalise the values 
+          data <- (temp.wave@left) / (2 ^ 16/2)
+          
+          # Calibrate the data with the microphone sensitivity
+          data_cal <- data/ (10^(Sensitivity/20))
+          
+          # Calculate RMS
+          data_rms <- rms(data_cal)
+          
+          
+          noise.list[[k]] <- data_rms
+          
+        }
+        
+        # Take the minimum value from the noise samples
+        noise.value.list[[e]] <- min(unlist(noise.list))
+        
+      }
+      
+      noise.value <- median(unlist(noise.value.list))
+      
+      # Isolate the corresponding .wav file for the playback selection
+      SignalWavtemp <-  ListofWavs[[d]]
+      
+      # Filter to the frequency range of the selection
+      w.dn.filt <- bwfilter(SignalWavtemp, 
+                            from=Selectiontemp$Low.Freq..Hz., 
+                            to=Selectiontemp$High.Freq..Hz.,n=3)
+      
+      # Normalise the values 
+      data <- w.dn.filt/ (2 ^ 16/2)
+      
+      # Calibrate the data with the microphone sensitivity
+      data_cal <- data/ (10^(Sensitivity/20))
+      
+      # Calculate RMS
+      signal.value <- rms(data_cal)
+      
+      
+      # Calculate absolute receive level of the signal in the selection in dB (subtracting noise)
+      Selectiontemp$PowerDb <- 20 * log10((signal.value-noise.value))
+      
+      # Calculate noise level in dB
+      Selectiontemp$NoisevalueDb <- 20 * log10((noise.value))
+      
+      Selectiontemp$Sound.Type <-  SelectionIDs[d,]$Sound.Type
+      
+      # Print the output
+      print(Selectiontemp)
+      
+      # Combine into a dataframe
+      BackgroundNoiseRemovedDF <- rbind.data.frame(BackgroundNoiseRemovedDF,Selectiontemp)
+    }
+    
+    }
+  }
 
+# Reference only has one set of playbacks so want to append   
+ReferenceDF <-subset(BackgroundNoiseRemovedDF, distance.from.source == '10')
+BackgroundNoiseRemovedDF <- subset(BackgroundNoiseRemovedDF, distance.from.source != '10')
+ReferenceDF <- rbind.data.frame(ReferenceDF,ReferenceDF ,ReferenceDF)
+ReferenceDF$Selection <- SelectionIDs$Selection
+ReferenceDF$Sound.Type <- SelectionIDs$Sound.Type
+
+BackgroundNoiseRemovedDF <-rbind.data.frame(BackgroundNoiseRemovedDF,ReferenceDF)
 
 # Part 5. Propagation Loss --------------------------------------------------------
 
@@ -359,7 +490,7 @@ for(z in 1:length(recorder)) { tryCatch({
       noise.level <- temp.recorder.received$NoisevalueDb
       
       # Calculate the distance ratio for propagation loss equation
-      dist.ratio <- log10(distance/dist.to.playback)
+      dist.ratio <- log10(distance/10)
       
       # Calculate the 'magic x'
       magic.x <-  zero.receive.level/dist.ratio
@@ -470,10 +601,10 @@ hist(observed.prop.loss.subset$magic.x)
 
 # We can subset by sound category- here it is by "Hfunstart"
 playback.line.1 <- median(na.omit(subset(observed.prop.loss,
-                                         Sound.category=="Hfunstart")$magic.x))
+                                         Sound.category=="Pwur")$magic.x))
 
 # Or we can combine all of our data
-playback.line.1 <- median(na.omit(observed.prop.loss$magic.x))
+#playback.line.1 <- median(na.omit(observed.prop.loss$magic.x))
 
 # Set the equations for observed, spherical and cylindrical spreading
 eq1 <- function(x){ playback.line.1*log10(x)}
@@ -488,19 +619,6 @@ colnames(Spherical) <- c("X","Value","Label")
 Cylindrical <-  cbind.data.frame(seq(1:500),eq3(1:500),rep('Cylindrical',500))
 colnames(Cylindrical) <- c("X","Value","Label")
 
-# Create series of points for each estimate
-
-
-SeriesForPlot <- data.frame()
-for(x in 1:nrow(observed.prop.loss)){
-  temp.x <- observed.prop.loss[x,]$magic.x
-  eqtemp <- function(x){ temp.x*log10(x)}
-  # Create a series of points based on the above equations
-  estimatedtemp <- cbind.data.frame(seq(1:500),eqtemp(1:500),rep(paste('Estimated',x,sep='_'),500))
-  colnames(estimatedtemp) <- c("X","Value","Label")
-  SeriesForPlot <- rbind.data.frame(SeriesForPlot,estimatedtemp)
-}
-
 # Combine all three into a single dataframe
 attenuation.df <- rbind.data.frame(Estimated1,Spherical,Cylindrical)
 
@@ -511,16 +629,7 @@ ggplot(data = attenuation.df,aes(x=X, y=Value,group=Label, colour=Label,linetype
   scale_linetype_manual(values=c( "solid","twodash", "dotted"))+
   theme(axis.text=element_text(size=12), axis.title=element_text(size=12,face="bold"))+
   xlab("Distance from source (m)") + ylab("Amplitude (dB)")+
-  ylim(-70,0)+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
-
-ggplot(data = SeriesForPlot,aes(x=X, y=Value,group=Label))+
-  geom_line() +theme_bw() + scale_color_manual(values = c("black","red","darkgray"))+
-  theme(legend.title = element_blank())+ 
-  #scale_linetype_manual(values=c( "solid","twodash", "dotted"))+
-  theme(axis.text=element_text(size=12), axis.title=element_text(size=12,face="bold"))+
-  xlab("Distance from source (m)") + ylab("Amplitude (dB)")+
-  ylim(-70,0)+
+  ylim(-100,0)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 
 
