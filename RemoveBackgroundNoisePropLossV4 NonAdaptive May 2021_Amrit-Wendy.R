@@ -249,7 +249,7 @@ for(b in 1:length(file.name.index)){
    SignalWavtemp <-  ListofWavs[[d]]
       
    # Filter to the frequency range of the selection #
-   # Error: Selectiontemp not found
+   # Note for Dena: Error: Selectiontemp not found
    w.dn.filt <- bwfilter(SignalWavtemp, 
                          from=Selectiontemp$Low.Freq..Hz., 
                          to=Selectiontemp$High.Freq..Hz.,n=3)
