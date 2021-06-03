@@ -15,6 +15,7 @@ library(plyr)
 library(ggpubr)
 library(geosphere)
 library(plotKML)
+library(dplyr)
 
 # Part 2. Set up data -------------------------------------------------------------
 
@@ -79,7 +80,8 @@ selection.tables.short <-
   list.files(input.dir,full.names = F)
 
 # Create an index for recorder (Wendy changed last line from 1 to 2)
-list.of.recorders <- str_split_fixed(selection.tables.short, pattern = '_',3)[,2]
+# list.of.recorders <- str_split_fixed(selection.tables.short, pattern = '_',3)[,2]
+list.of.recorders <- str_split_fixed(selection.tables.short, pattern = '_',3)[,1]
 
 # Read in selection tables and combine with file name
 combined.template.table.test <- data.frame()
@@ -96,6 +98,7 @@ for(a in 1:length(selection.tables)){
   
   
   combined.template.table.test <- rbind.data.frame(combined.template.table.test,template.table.temp)
+  #combined.template.table.test <- bind_rows(combined.template.table.test,template.table.temp)
 }
 
 # Check output to make sure it looks right
@@ -127,25 +130,40 @@ tail(combined.template.table.test)
 # Combine all into a single dataframe
 # BackgroundNoiseRemovedDF.test <- merge(combined.template.table.test,small.gps.df,by='recorder')
 
+# Read in data file
+rungan_data <- read.csv("/Users/Wendy/github/Propagation-Loss-2020-2021/mungku_baru_data/PropLoss_test.csv")
+
+# Loop to match files
+pb.index <- unique(combined.template.table.test$recorder)
+combined.template.table.test.add.dist <- data.frame()
+for(b in 1:length(pb.index)){
+  #from pb.rungan, find distance 
+  single.pb.subset <- subset(rungan_data,PB_No==pb.index[b])
+  subset.add.dist <- subset(combined.template.table.test,recorder==pb.index[b])
+  subset.add.dist$distance.from.source <- rep(single.pb.subset$Dist, nrow(subset.add.dist))
+  subset.add.dist$Loc_Name <- rep(single.pb.subset$Loc_Name, nrow(subset.add.dist))
+    combined.template.table.test.add.dist <- rbind.data.frame(combined.template.table.test.add.dist,subset.add.dist)
+}
+
 # Add a distance column
-combined.template.table.test$distance.from.source <- str_split_fixed(combined.template.table.test$file.name,pattern = '_',n=4)[,4]
+# combined.template.table.test$distance.from.source <- str_split_fixed(combined.template.table.test$file.name,pattern = '_',n=4)[,4]
 
 # Add a date column
-combined.template.table.test$date <- str_split_fixed(combined.template.table.test$file.name,pattern = '_',n=4)[,2]
+combined.template.table.test.add.dist$date <- str_split_fixed(combined.template.table.test.add.dist$file.name,pattern = '_',n=4)[,3]
 
 # Add a time column
-time.temp <- str_split_fixed(combined.template.table.test$file.name,pattern = '_',n=4)[,3]
-combined.template.table.test$time <- str_split_fixed(time.temp,pattern = '.txt',n=2)[,1]
-combined.template.table.test$time <- substr(combined.template.table.test$time,start=1,stop=4)
+time.temp <- str_split_fixed(combined.template.table.test.add.dist$file.name,pattern = '_',n=4)[,4]
+#combined.template.table.test.add.dist$time <- str_split_fixed(time.temp,pattern = '.txt',n=2)[,1]
+combined.template.table.test.add.dist$time <- substr(time.temp,start=1,stop=4)
 
 # Check structure of resulting data frame
-head(combined.template.table.test)
+head(combined.template.table.test.add.dist)
 
 
 # Part 4. Calculate absolute receive levels for each selection --------------------
 
 # Create an index for each file
-file.name.index <- unique(combined.template.table.test$file.name)
+file.name.index <- unique(combined.template.table.test.add.dist$Loc_Name)
 
 # Create an empty dataframe to add to iteratively in the loop
 BackgroundNoiseRemovedDF <- data.frame()
@@ -154,9 +172,9 @@ BackgroundNoiseRemovedDF <- data.frame()
 for(b in 1:length(file.name.index)){
   
   # Subset by recorder and date index
-  singleplayback.df <- subset(combined.template.table.test,file.name==file.name.index[b])
+  singleplayback.df <- subset(combined.template.table.test.add.dist,Loc_Name==file.name.index[b])
   
-  singleplayback.df <-singleplayback.df[-PulsesToRemove,]
+  # singleplayback.df <-singleplayback.df[-PulsesToRemove,]
   # Create sound file path
   soundfile.path <- paste(SoundFiles.input,singleplayback.df$file.name[1],'.wav',sep='')
   
