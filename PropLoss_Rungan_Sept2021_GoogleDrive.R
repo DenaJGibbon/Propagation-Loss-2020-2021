@@ -16,6 +16,7 @@ library(ggpubr)
 library(geosphere)
 library(plotKML)
 library(dplyr)
+library(googledrive)
 
 # Part 2. Set up data -------------------------------------------------------------
 
@@ -144,11 +145,15 @@ head(combined.template.table.test.add.dist)
 table(combined.template.table.test.add.dist$distance.from.source)
 
 # Part 4. Calculate absolute receive levels for each selection --------------------
-# Create an index for each file
-file.name.index <- unique(combined.template.table.test.add.dist$Loc_Name)
 
 combined.template.table.test.add.dist$Loc_Name <- 
   as.factor(combined.template.table.test.add.dist$Loc_Name)
+
+# Subset so can focus on one series of playbacks -- NOTE:this is for trouble-shooting only
+#combined.template.table.test.add.dist <- subset(combined.template.table.test.add.dist, recorder==68 |recorder==73 | recorder==74 | recorder == 'char3')
+
+# Create an index for each file
+file.name.index <- unique(combined.template.table.test.add.dist$Loc_Name)
 
 
 # Create an empty dataframe to add to iteratively in the loop
@@ -159,11 +164,11 @@ for(b in 1:length(file.name.index)){
   
   # Subset by recorder and date index
   combined.playbacks <- subset(combined.template.table.test.add.dist,Loc_Name==file.name.index[b])
-  
+
   unique.playbacks <- unique(combined.playbacks$recorder)
   
   for(j in 1:length(unique.playbacks)){
-  
+  print(paste('processing', j, 'out of',length(unique.playbacks), 'for location', file.name.index[b]))
   singleplayback.df <- subset(combined.playbacks,recorder==unique.playbacks[j])
   
   # Create sound file path
@@ -172,16 +177,16 @@ for(b in 1:length(file.name.index)){
   soundfile.path <- paste(soundfile,'.wav',sep='')
   wav.file.index <- which(Rungan.playbacks.wav.files$name %in% soundfile.path)
   
+  if(file.exists(soundfile.path)==FALSE){
   drive_download(as_id(Rungan.playbacks.wav.files$id[wav.file.index]))
+  }
   
   # Read in the long .wav file
   wavfile.temp <- tuneR::readWave(Rungan.playbacks.wav.files$name[wav.file.index])
   
-  # Downsample so that comparable with C. Kalimantan recordings
-  wavfile.temp <- tuneR::downsample(wavfile.temp,16000)
-  
+
   # Check to make sure number of selections matches the template
-  if(nrow(singleplayback.df)==nrow(SelectionIDs)){ 
+  #if(nrow(singleplayback.df)==nrow(SelectionIDs)){ 
     
     # Use the Raven selection table to cut each selection into an individual .wav file
     ListofWavs <- 
@@ -294,6 +299,7 @@ for(b in 1:length(file.name.index)){
       # Calculate noise level in dB
       Selectiontemp$NoisevalueDb <- 20 * log10((noise.value))
       
+      # Match the signal with the sound type
       Selectiontemp$Sound.Type <-  SelectionIDs[d,]$Sound.Type
       
       # Print the output
@@ -301,30 +307,37 @@ for(b in 1:length(file.name.index)){
       
       # Combine into a dataframe
       BackgroundNoiseRemovedDF <- rbind.data.frame(BackgroundNoiseRemovedDF,Selectiontemp)
+      write.csv(BackgroundNoiseRemovedDF,'BackgroundNoiseRemovedDFSept2021.csv',row.names = F)
     }
 
     
-  }
+  
   # Remove file from memory
   unlink(Rungan.playbacks.wav.files$name[wav.file.index])
   rm(wavfile.temp)
   }
     }
 
+BackgroundNoiseRemovedDF$distance.from.source
 
 # Reference only has one set of playbacks so want to append   
-ReferenceDF_char1 <-subset(ReferenceDF, Loc_Name == 'char1')
-ReferenceDF_char1 <- rbind.data.frame(ReferenceDF_char1,ReferenceDF_char1 ,ReferenceDF_char1)
-ReferenceDF_char1$Selection <- SelectionIDs$Selection
-ReferenceDF_char1$Sound.Type <- SelectionIDs$Sound.Type
+BackgroundNoiseRemovedDF_char1 <-subset(BackgroundNoiseRemovedDF, Loc_Name == 'char1')
+BackgroundNoiseRemovedDF_char1 <- rbind.data.frame(BackgroundNoiseRemovedDF_char1,BackgroundNoiseRemovedDF_char1 ,BackgroundNoiseRemovedDF_char1)
+BackgroundNoiseRemovedDF_char1$Selection <- SelectionIDs$Selection
+BackgroundNoiseRemovedDF_char1$Sound.Type <- SelectionIDs$Sound.Type
 
-ReferenceDF_char3 <-subset(ReferenceDF, Loc_Name == 'char3')
-ReferenceDF_char3 <- rbind.data.frame(ReferenceDF_char3,ReferenceDF_char3 ,ReferenceDF_char3)
-ReferenceDF_char3$Selection <- SelectionIDs$Selection
-ReferenceDF_char3$Sound.Type <- SelectionIDs$Sound.Type
+BackgroundNoiseRemovedDF_char2 <-subset(BackgroundNoiseRemovedDF, Loc_Name == 'char2')
+BackgroundNoiseRemovedDF_char2 <- rbind.data.frame(BackgroundNoiseRemovedDF_char2,BackgroundNoiseRemovedDF_char2 ,BackgroundNoiseRemovedDF_char2)
+BackgroundNoiseRemovedDF_char2$Selection <- SelectionIDs$Selection
+BackgroundNoiseRemovedDF_char2$Sound.Type <- SelectionIDs$Sound.Type
 
+BackgroundNoiseRemovedDF_char3 <-subset(BackgroundNoiseRemovedDF, Loc_Name == 'char3')
+BackgroundNoiseRemovedDF_char3 <- rbind.data.frame(BackgroundNoiseRemovedDF_char3,BackgroundNoiseRemovedDF_char3 ,BackgroundNoiseRemovedDF_char3)
+BackgroundNoiseRemovedDF_char3$Selection <- SelectionIDs$Selection
+BackgroundNoiseRemovedDF_char3$Sound.Type <- SelectionIDs$Sound.Type
 
-CombinedDF <-rbind.data.frame(BackgroundNoiseRemovedDF,ReferenceDF)
+BackgroundNoiseRemovedDF <- subset(BackgroundNoiseRemovedDF,Loc_Name != 'char3')
+CombinedDF <-rbind.data.frame(BackgroundNoiseRemovedDF,BackgroundNoiseRemovedDF_char3)
 
 # Part 5. Propagation Loss --------------------------------------------------------
 
@@ -358,7 +371,7 @@ for(z in 1:length(Loc_Name.index)) { tryCatch({
   
  temp.char.info <- char.matching[which(char.matching$rec== temp.playback.data$ARU_ID),]
   
- TempReferenceDF <- subset(ReferenceDF,recorder==temp.char.info$char)
+ TempReferenceDF <- subset(CombinedDF,Loc_Name== temp.char.info$char)
  
  # Create an index for each unique file in the playback
   file.index <- unique(temp.playback$distance.from.source)
@@ -523,6 +536,8 @@ site1.plot <- ggpubr::ggscatter(data = observed.prop.loss.subset.site1,x='distan
                   facet.by = 'Sound.category',xlim=c(0,500), #ylim=c(-70,-20),
                   add = c("loess"),title='3 (S4A07867)')+
   xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
+
+site1.plot
 
 # Plot observed change in receive level by distance
 observed.prop.loss.subset.site2 <- subset(observed.prop.loss.subset,pb.id =='7 (S4A07360)')
