@@ -1,0 +1,2 @@
+
+/Users/denaclink/opt/anaconda3/envs/r-reticulate
