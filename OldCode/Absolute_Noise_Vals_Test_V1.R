@@ -13,7 +13,7 @@ temp.wave <-
   )
 
 # Set microphone sensitivity
-gain <- 40
+gain <- 30
 
 Sensitivity <- -137.9794 + gain - 0.9151 # dB relative to 1 volt per pascal
 

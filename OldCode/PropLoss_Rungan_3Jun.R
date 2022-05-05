@@ -24,7 +24,6 @@ setwd <- '/Users/Wendy/github/Propagation-Loss-2020-2021'
 
 SelectionIDs <- 
   read.delim("SelectionLabels_S00974_20190811_101922_updated.txt")
-#NOTE that there are two Pwur call types
 
 # Remove pulses
 PulsesToRemove <- c(10,11,19,20,21,30,31,32,33,34,
@@ -34,21 +33,21 @@ PulsesToRemove <- c(10,11,19,20,21,30,31,32,33,34,
 PlaybackSeq <- seq(1,nrow(SelectionIDs),1)
 
 PlaybackSeqUpdated <- PlaybackSeq[-PulsesToRemove]
-#SelectionIDs <- SelectionIDs[-PulsesToRemove,]
+SelectionIDs <- SelectionIDs[-PulsesToRemove,]
 
 # Sound file location
-SoundFiles.input <- 
-  '/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/3Jun/sound_files/'
+#SoundFiles.input <- 
+  '/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/test 1 set/sound_files/'
 
-# SoundFiles.input <- 
-#   '/Users/Wendy/github/Propagation-Loss-2020-2021/mungku_baru_data/test/sound_files/'
+SoundFiles.input <- 
+  '/Users/Wendy/github/Propagation-Loss-2020-2021/mungku_baru_data/test/sound_files/'
 
 # Selection table location
-input.dir <- 
-  "/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/3Jun/selection_tables"
+#input.dir <- 
+  "/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/test 1 set/selection_tables"
   
-  # input.dir <- 
-  #   "/Users/Wendy/github/Propagation-Loss-2020-2021/mungku_baru_data/test/selection_tables"
+  input.dir <- 
+    "/Users/Wendy/github/Propagation-Loss-2020-2021/mungku_baru_data/test/selection_tables"
 
 # Read in GPS data
 #recorder.gps <- plotKML::readGPX("/Users/Wendy/github/Propagation-Loss-2020-2021/mungku_baru_data/MB Playbacks 50 m.GPX") 
@@ -95,13 +94,9 @@ for(a in 1:length(selection.tables)){
   file.name <- selection.tables.short[a]
   file.name <- str_split_fixed(file.name,pattern = '.txt',n=2)[,1]
   
-  
   template.table.temp <- cbind.data.frame(template.table.temp,recorder,file.name)
   
-  template.table.temp <-template.table.temp[,c("Selection", "View", "Channel", "Begin.Time..s.", "End.Time..s.", 
-                          "Low.Freq..Hz.", "High.Freq..Hz.",
-                          "SNR.NIST.Quick..dB.FS.", "Sound.Type", "recorder", "file.name"
-  )]
+  
   combined.template.table.test <- rbind.data.frame(combined.template.table.test,template.table.temp)
   #combined.template.table.test <- bind_rows(combined.template.table.test,template.table.temp)
 }
@@ -111,12 +106,35 @@ tail(combined.template.table.test)
 
 # Part 3. Create distance matrix based on GPS points ---------------------------------------------------
 
+# Convert name so that it matches dataframe
+# recorder.gps$waypoints$name <- str_remove(recorder.gps$waypoints$name, '0')
+
+# Subset only necessary columns from GPS data
+# small.gps.df <- recorder.gps$waypoints[,c('lon','lat','name')]
+# colnames(small.gps.df) <- c('lon','lat','recorder')
+
+# Combine into a distance matrix
+# xy.coords <- cbind(c(small.gps.df$lon), 
+#                   c(small.gps.df$lat))
+
+# dist.mat <- distm( xy.coords, fun = distHaversine)
+
+# Add recorder names to distance matrix
+# colnames(dist.mat) <- c(as.character(small.gps.df$recorder))
+# rownames(dist.mat) <- c(as.character(small.gps.df$recorder))
+
+# Check output
+# dist.mat
+
+
+# Combine all into a single dataframe
+# BackgroundNoiseRemovedDF.test <- merge(combined.template.table.test,small.gps.df,by='recorder')
+
 # Read in data file
-rungan_data <- read.csv("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/3Jun/PropLoss_test.csv")
+rungan_data <- read.csv("/Users/Wendy/github/Propagation-Loss-2020-2021/mungku_baru_data/PropLoss_test.csv")
 
 # Loop to match files
 pb.index <- unique(combined.template.table.test$recorder)
-
 combined.template.table.test.add.dist <- data.frame()
 for(b in 1:length(pb.index)){
   #from pb.rungan, find distance 
@@ -140,167 +158,12 @@ combined.template.table.test.add.dist$time <- substr(time.temp,start=1,stop=4)
 
 # Check structure of resulting data frame
 head(combined.template.table.test.add.dist)
-table(combined.template.table.test.add.dist$distance.from.source)
+
 
 # Part 4. Calculate absolute receive levels for each selection --------------------
+
 # Create an index for each file
 file.name.index <- unique(combined.template.table.test.add.dist$Loc_Name)
-
-combined.template.table.test.add.dist$Loc_Name <- 
-  as.factor(combined.template.table.test.add.dist$Loc_Name)
-
-# Create an empty dataframe to add to iteratively in the loop
-ReferenceDF <- data.frame()
-
-# The loop to calculate inband power (after subtracting the noise) for each selection from the wave file
-for(b in 3:4){
-  
-  # Subset by recorder and date index
-  combined.playbacks <- subset(combined.template.table.test.add.dist,Loc_Name==file.name.index[b])
-  
-  unique.playbacks <- unique(combined.playbacks$time)
-  
-  for(j in 1:length(unique.playbacks)){
-    
-    singleplayback.df <- subset(combined.playbacks,time==unique.playbacks[j])
-    
-    # Create sound file path
-    soundfile <- str_split_fixed(singleplayback.df$file.name[1],pattern = '_',n=2)[,2]
-    soundfile.path <- paste(SoundFiles.input,soundfile,'.wav',sep='')
-    
-    # Read in the long .wav file
-    wavfile.temp <- tuneR::readWave(soundfile.path)
-    
-    # Downsample so that comparable with C. Kalimantan recordings
-    wavfile.temp <- tuneR::downsample(wavfile.temp,16000)
-    
-    # Check to make sure number of selections matches the template
- 
-      
-      # Use the Raven selection table to cut each selection into an individual .wav file
-      ListofWavs <- 
-        lapply(1:nrow(singleplayback.df), function(x) cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[x]- signal.time.buffer),
-                                                           to= (singleplayback.df$End.Time..s.[x]+signal.time.buffer), output='Wave'))
-      
-      
-      # Use the Raven selection table to extract a longer duration .wav file for noise
-      NoiseWav1 <- cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[1]-timesecs),
-                        to=singleplayback.df$Begin.Time..s.[1], output='Wave')
-      
-      NoiseWav2 <- cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[nrow(singleplayback.df)]),
-                        to= (singleplayback.df$Begin.Time..s.[nrow(singleplayback.df)]+timesecs), output='Wave')
-      
-      NoiseWavList <- list(NoiseWav1,NoiseWav2)
-      
-      # Matches each selection with the corresponding noise and selection .wav file and calculate absolute receive level
-      for(d in 1:nrow(singleplayback.df)){
-        
-        print(d)
-        
-        # Subset the correspond row from the selection table
-        Selectiontemp <- singleplayback.df[d,]
-        
-        noise.value.list <- list()
-        
-        for(e in 1:length(NoiseWavList)){
-          
-          # Take the corresponding noise file
-          NoiseWavetemp <- NoiseWavList[[e]]
-          
-          # Filter to the frequency range of the selection
-          filteredwaveform<- bwfilter(NoiseWavetemp, 
-                                      from=Selectiontemp$Low.Freq..Hz., 
-                                      to=Selectiontemp$High.Freq..Hz.,
-                                      n=3)
-          
-          # Add the filtered waveform back into the .wav file
-          NoiseWavetemp@left <- c(filteredwaveform)
-          
-          # Assign a new name
-          w.dn.filt <- NoiseWavetemp
-          
-          # Calculate the duration of the sound file
-          dur.seconds <- duration(w.dn.filt)
-          
-          # Divide into evenly spaced bins (duration specified above)
-          bin.seq <- seq(from=0, to=dur.seconds, by=noise.subsamples)
-          
-          # Create a list of all the noise subsample bins to estimate noise
-          bin.seq.length <- length(bin.seq)-1
-          
-          # Create a list of shorter sound files to calculate noise
-          subsamps.1sec <- lapply(1:bin.seq.length, function(i) 
-            extractWave(w.dn.filt, 
-                        from=as.numeric(bin.seq[i]), to=as.numeric(bin.seq[i+1]), 
-                        xunit = c("time"),plot=F,output="Wave"))
-          
-          
-          # Calculate noise for each noise time bin 
-          noise.list <- list()
-          
-          for (k in 1:length(subsamps.1sec)) { 
-            
-            # Read in .wav file 
-            temp.wave <- subsamps.1sec[[k]]
-            
-            # Normalise the values 
-            data <- (temp.wave@left) / (2 ^ 16/2)
-            
-            # Calibrate the data with the microphone sensitivity
-            data_cal <- data/ (10^(Sensitivity/20))
-            
-            # Calculate RMS
-            data_rms <- rms(data_cal)
-            
-            
-            noise.list[[k]] <- data_rms
-            
-          }
-          
-          # Take the minimum value from the noise samples
-          noise.value.list[[e]] <- min(unlist(noise.list))
-          
-        }
-        
-        noise.value <- median(unlist(noise.value.list))
-        
-        # Isolate the corresponding .wav file for the playback selection
-        SignalWavtemp <-  ListofWavs[[d]]
-        
-        # Filter to the frequency range of the selection
-        w.dn.filt <- bwfilter(SignalWavtemp, 
-                              from=Selectiontemp$Low.Freq..Hz., 
-                              to=Selectiontemp$High.Freq..Hz.,n=3)
-        
-        # Normalise the values 
-        data <- w.dn.filt/ (2 ^ 16/2)
-        
-        # Calibrate the data with the microphone sensitivity
-        data_cal <- data/ (10^(Sensitivity/20))
-        
-        # Calculate RMS
-        signal.value <- rms(data_cal)
-        
-        
-        # Calculate absolute receive level of the signal in the selection in dB (subtracting noise)
-        Selectiontemp$PowerDb <- 20 * log10((signal.value-noise.value))
-        
-        # Calculate noise level in dB
-        Selectiontemp$NoisevalueDb <- 20 * log10((noise.value))
-        
-        Selectiontemp$Sound.Type <-  SelectionIDs[d,]$Sound.Type
-        
-        # Print the output
-        print(Selectiontemp)
-        
-        # Combine into a dataframe
-        ReferenceDF <- rbind.data.frame(ReferenceDF,Selectiontemp)
-      }
-      
-    }
-    
-}
-
 
 # Create an empty dataframe to add to iteratively in the loop
 BackgroundNoiseRemovedDF <- data.frame()
@@ -309,17 +172,11 @@ BackgroundNoiseRemovedDF <- data.frame()
 for(b in 1:length(file.name.index)){
   
   # Subset by recorder and date index
-  combined.playbacks <- subset(combined.template.table.test.add.dist,Loc_Name==file.name.index[b])
+  singleplayback.df <- subset(combined.template.table.test.add.dist,Loc_Name==file.name.index[b])
   
-  unique.playbacks <- unique(combined.playbacks$time)
-  
-  for(j in 1:length(unique.playbacks)){
-  
-  singleplayback.df <- subset(combined.playbacks,time==unique.playbacks[j])
-  
+  # singleplayback.df <-singleplayback.df[-PulsesToRemove,]
   # Create sound file path
-  soundfile <- str_split_fixed(singleplayback.df$file.name[1],pattern = '_',n=2)[,2]
-  soundfile.path <- paste(SoundFiles.input,soundfile,'.wav',sep='')
+  soundfile.path <- paste(SoundFiles.input,singleplayback.df$file.name[1],'.wav',sep='')
   
   # Read in the long .wav file
   wavfile.temp <- tuneR::readWave(soundfile.path)
@@ -452,62 +309,162 @@ for(b in 1:length(file.name.index)){
     
   }
   
-  }
+  if(nrow(singleplayback.df)!=nrow(SelectionIDs)){ 
+    # Use the Raven selection table to cut each selection into an individual .wav file
+    ListofWavs <- 
+      lapply(1:nrow(singleplayback.df), function(x) cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[x]- signal.time.buffer),
+                                                         to= (singleplayback.df$End.Time..s.[x]+signal.time.buffer), output='Wave'))
+    
+    
+    # Use the Raven selection table to extract a longer duration .wav file for noise
+    NoiseWav1 <- cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[1]-timesecs),
+                      to=singleplayback.df$Begin.Time..s.[1], output='Wave')
+    
+    NoiseWav2 <- cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[nrow(singleplayback.df)]),
+                      to= (singleplayback.df$Begin.Time..s.[nrow(singleplayback.df)]+timesecs), output='Wave')
+    
+    NoiseWavList <- list(NoiseWav1,NoiseWav2)
+    
+    # Matches each selection with the corresponding noise and selection .wav file and calculate absolute receive level
+    for(d in 1:nrow(singleplayback.df)){
+      
+      print(d)
+      
+      # Subset the correspond row from the selection table
+      Selectiontemp <- singleplayback.df[d,]
+      
+      noise.value.list <- list()
+      
+      for(e in 1:length(NoiseWavList)){
+        
+        # Take the corresponding noise file
+        NoiseWavetemp <- NoiseWavList[[e]]
+        
+        # Filter to the frequency range of the selection
+        filteredwaveform<- bwfilter(NoiseWavetemp, 
+                                    from=Selectiontemp$Low.Freq..Hz., 
+                                    to=Selectiontemp$High.Freq..Hz.,
+                                    n=3)
+        
+        # Add the filtered waveform back into the .wav file
+        NoiseWavetemp@left <- c(filteredwaveform)
+        
+        # Assign a new name
+        w.dn.filt <- NoiseWavetemp
+        
+        # Calculate the duration of the sound file
+        dur.seconds <- duration(w.dn.filt)
+        
+        # Divide into evenly spaced bins (duration specified above)
+        bin.seq <- seq(from=0, to=dur.seconds, by=noise.subsamples)
+        
+        # Create a list of all the noise subsample bins to estimate noise
+        bin.seq.length <- length(bin.seq)-1
+        
+        # Create a list of shorter sound files to calculate noise
+        subsamps.1sec <- lapply(1:bin.seq.length, function(i) 
+          extractWave(w.dn.filt, 
+                      from=as.numeric(bin.seq[i]), to=as.numeric(bin.seq[i+1]), 
+                      xunit = c("time"),plot=F,output="Wave"))
+        
+        
+        # Calculate noise for each noise time bin 
+        noise.list <- list()
+        
+        for (k in 1:length(subsamps.1sec)) { 
+          
+          # Read in .wav file 
+          temp.wave <- subsamps.1sec[[k]]
+          
+          # Normalise the values 
+          data <- (temp.wave@left) / (2 ^ 16/2)
+          
+          # Calibrate the data with the microphone sensitivity
+          data_cal <- data/ (10^(Sensitivity/20))
+          
+          # Calculate RMS
+          data_rms <- rms(data_cal)
+          
+          
+          noise.list[[k]] <- data_rms
+          
+        }
+        
+        # Take the minimum value from the noise samples
+        noise.value.list[[e]] <- min(unlist(noise.list))
+        
+      }
+      
+      noise.value <- median(unlist(noise.value.list))
+      
+      # Isolate the corresponding .wav file for the playback selection
+      SignalWavtemp <-  ListofWavs[[d]]
+      
+      # Filter to the frequency range of the selection
+      w.dn.filt <- bwfilter(SignalWavtemp, 
+                            from=Selectiontemp$Low.Freq..Hz., 
+                            to=Selectiontemp$High.Freq..Hz.,n=3)
+      
+      # Normalise the values 
+      data <- w.dn.filt/ (2 ^ 16/2)
+      
+      # Calibrate the data with the microphone sensitivity
+      data_cal <- data/ (10^(Sensitivity/20))
+      
+      # Calculate RMS
+      signal.value <- rms(data_cal)
+      
+      
+      # Calculate absolute receive level of the signal in the selection in dB (subtracting noise)
+      Selectiontemp$PowerDb <- 20 * log10((signal.value-noise.value))
+      
+      # Calculate noise level in dB
+      Selectiontemp$NoisevalueDb <- 20 * log10((noise.value))
+      
+      Selectiontemp$Sound.Type <-  SelectionIDs[d,]$Sound.Type
+      
+      # Print the output
+      print(Selectiontemp)
+      
+      # Combine into a dataframe
+      BackgroundNoiseRemovedDF <- rbind.data.frame(BackgroundNoiseRemovedDF,Selectiontemp)
     }
-
+    
+    }
+  }
 
 # Reference only has one set of playbacks so want to append   
-ReferenceDF_char1 <-subset(ReferenceDF, Loc_Name == 'char1')
-ReferenceDF_char1 <- rbind.data.frame(ReferenceDF_char1,ReferenceDF_char1 ,ReferenceDF_char1)
-ReferenceDF_char1$Selection <- SelectionIDs$Selection
-ReferenceDF_char1$Sound.Type <- SelectionIDs$Sound.Type
+ReferenceDF <-subset(BackgroundNoiseRemovedDF, distance.from.source == '10')
+BackgroundNoiseRemovedDF <- subset(BackgroundNoiseRemovedDF, distance.from.source != '10')
+ReferenceDF <- rbind.data.frame(ReferenceDF,ReferenceDF ,ReferenceDF)
+ReferenceDF$Selection <- SelectionIDs$Selection
+ReferenceDF$Sound.Type <- SelectionIDs$Sound.Type
 
-ReferenceDF_char3 <-subset(ReferenceDF, Loc_Name == 'char3')
-ReferenceDF_char3 <- rbind.data.frame(ReferenceDF_char3,ReferenceDF_char3 ,ReferenceDF_char3)
-ReferenceDF_char3$Selection <- SelectionIDs$Selection
-ReferenceDF_char3$Sound.Type <- SelectionIDs$Sound.Type
-
-
-CombinedDF <-rbind.data.frame(BackgroundNoiseRemovedDF,ReferenceDF)
+BackgroundNoiseRemovedDF <-rbind.data.frame(BackgroundNoiseRemovedDF,ReferenceDF)
 
 # Part 5. Propagation Loss --------------------------------------------------------
 
 # Create an index with unique date/time combinations
 # NOTE: We will need to update this for the full dataset
-Loc_Name.index <- 
-  unique(BackgroundNoiseRemovedDF$Loc_Name)
-
-# Create dataframe to match characterization units  
-char.matching <- data.frame(
-  char = c('char1','char2','char3'),
-  rec=c('S00976', 'S01143', 'S00974')
-)
+recorder <- unique(BackgroundNoiseRemovedDF$recorder)
+  
+  
 # Create empty dataframe for propagation loss
 observed.prop.loss <- data.frame()
 
 # Loop to calculate propagation loss
-for(z in 1:length(Loc_Name.index)) { tryCatch({ 
+for(z in 1:length(recorder)) { tryCatch({ 
   
   # Subset data frame to focus on unique date/time
   temp.playback <- subset(BackgroundNoiseRemovedDF, 
-                          Loc_Name==Loc_Name.index[z])
+                          recorder==recorder[z])
   
   # See how many unique playbacks
-  unique(temp.playback$distance.from.source)
+  unique(temp.playback$file.name)
   
- playback.index <-  which(rungan_data$Loc_Name == unique(temp.playback$Loc_Name))
- 
- temp.playback.data <- rungan_data[playback.index[1],]
-  
- temp.char.info <- char.matching[which(char.matching$rec== temp.playback.data$ARU_ID),]
-  
- TempReferenceDF <- subset(ReferenceDF,recorder==temp.char.info$char)
- 
- # Create an index for each unique file in the playback
-  file.index <- unique(temp.playback$distance.from.source)
+  # Create an index for each unique file in the playback
+  file.index <- unique(temp.playback$file.name)
   SelectionIndex <- (SelectionIDs$Sound.Type)
-  
-  temp.playback$distance.from.source <- as.character(temp.playback$distance.from.source)
   
   # This isolates each selection in the original template one by one
   for(a in 1:length(SelectionIndex)){
@@ -515,20 +472,14 @@ for(z in 1:length(Loc_Name.index)) { tryCatch({
     # Subset the same selection from each of the recorders
     small.sample.playback.test <- data.frame()
     for(b in 1:length(file.index) ){
-      temp.table <- subset(temp.playback,distance.from.source=file.index[b])
+      temp.table <- subset(temp.playback,file.name==file.index[b])
       temp.table$Sound.Type <- SelectionIDs$Sound.Type
       temp.table <- temp.table[a,]
-      small.sample.playback.test <- 
-        rbind.data.frame(small.sample.playback.test,
-                                                     temp.table )
+      small.sample.playback.test <- rbind.data.frame(small.sample.playback.test,temp.table )
     }
-    
-    #Append reference
-    small.sample.playback.test <- rbind.data.frame(small.sample.playback.test,TempReferenceDF[a,])
     
     # Reorder based on distance from speaker
     small.sample.playback.test <-  arrange(small.sample.playback.test, distance.from.source)  
-    
     
     # Create an index for each unique recorder in the new subset dataset
     recorder.index.test <- unique(small.sample.playback.test$distance.from.source)
@@ -537,10 +488,8 @@ for(z in 1:length(Loc_Name.index)) { tryCatch({
     small.sample.playback.test$PowerDb.zero <- 
       small.sample.playback.test$PowerDb-small.sample.playback.test$PowerDb[1]
     
-    small.sample.playback.test
-    
-    # Loop to calculate propagation loss
-    for(c in 1:length(recorder.index.test)){tryCatch({ 
+    # Loop to calculate propagation loss; note the index starts at 2 since we use the closest one as the reference
+    for(c in 2:length(recorder.index.test)){tryCatch({ 
       
       # Isolate the recorder that we will use to estimate receive levels
       temp.recorder.received <- subset(small.sample.playback.test,distance.from.source==recorder.index.test[c])
@@ -725,15 +674,5 @@ ggpubr::ggscatter(data = observed.prop.loss.x.dist,x='distance', y='actual.recei
                   #xlim=c(0,300), #ylim=c(-70,-20),
                   title='')+
   xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
-
-
-ggpubr::ggscatter(data = observed.prop.loss.x.dist,x='distance', y='actual.receive.level',
-                  color='Sound.type',
-                  #xlim=c(0,300), #ylim=c(-70,-20),
-                  title='')+
-  xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
-
-
-ggpubr::ggboxplot(data=observed.prop.loss.subset,x='Sound.category',y='noise.level')
 
 
