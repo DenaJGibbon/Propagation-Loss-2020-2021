@@ -24,7 +24,7 @@ library(geosphere)
 library(plotKML)
 library(dplyr)
 library(googledrive)
-library()
+
 
 # Part 2. Set up data -------------------------------------------------------------
 
