@@ -35,13 +35,17 @@ SelectionIDs <- SelectionIDs[-PulsesToRemove,]
 
 # Sound file location
 SoundFiles.input <- 
-  '/Users/denaclink/Box/CCB Datastore/Projects/2018/2018_BRP_Borneo_T0046/Clink_BRP_3TB/2019 Maliau Basin/Playbacks_50m'
+  '/Users/denaclink/Library/CloudStorage/Box-Box/CCB Datastore/Projects/2018/2018_BRP_Borneo_T0046/Clink_BRP_3TB/2019 Maliau Basin/Playbacks_50m'
 
 SoundFiles.input.list <- list.files(SoundFiles.input,full.names = T,recursive = T)
 
 # Selection table location
 input.dir <- 
   "/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/Maliau Basin Selection Tables"
+
+# Read in GPS data
+thirdoctaveband.data <-read.csv("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/thirdoctavebands.csv")
+thirdoctaveband.data <- thirdoctaveband.data[10:28,]
 
 # Read in GPS data
 recorder.gps <- plotKML::readGPX("/Users/denaclink/Downloads/MB Playbacks 50 m.GPX") 
@@ -151,7 +155,7 @@ file.name.index.sorted <- file.name.date.reorder$file.name.index
 BackgroundNoiseRemovedDFMaliau <- data.frame()
 
 # NOTE for now skip recordings at 40 mins
-
+ThirdOctaveBandDF <- data.frame()
 # The loop to calculate inband power (after subtracting the noise) for each selection from the wave file
 for(b in 1:length(file.name.index.sorted)){tryCatch({ 
   print(paste('processing sound file',file.name.index.sorted[b] ))
@@ -168,7 +172,8 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
   # Create sound file path
   
   soundfile.path <-  SoundFiles.input.list[str_detect(SoundFiles.input.list,singleplayback.df$file.name[1])]
-  
+  nslash <- str_count(soundfile.path,'/')
+  short.wav <- str_split_fixed(soundfile.path,'/',nslash+1)[,nslash+1]
   # Read in the long .wav file
   wavfile.temp <- tuneR::readWave(soundfile.path)
   
@@ -193,6 +198,85 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
   
   NoiseWavList <- list(NoiseWav1,NoiseWav2)
   
+
+  
+  for(m in 1:nrow(thirdoctaveband.data)){
+    OctaveBandnoiselist <- list()
+    # Calculate noise in 1/3 octave bands
+    for(l in 1:length(NoiseWavList)){
+      print('Calculating noise for 1/3 octave bands')
+      # Take the corresponding noise file
+      NoiseWavetemp <- NoiseWavList[[l]]
+      
+      
+      # Filter to the frequency range of the selection
+      filteredwaveform<- bwfilter(NoiseWavetemp, 
+                                  from=thirdoctaveband.data[m,]$low.freq, 
+                                  to=thirdoctaveband.data[m,]$high.freq,
+                                  n=3)
+      
+      # Add the filtered waveform back into the .wav file
+      NoiseWavetemp@left <- c(filteredwaveform)
+      
+      # Assign a new name
+      w.dn.filt <- NoiseWavetemp
+      
+      # Calculate the duration of the sound file
+      dur.seconds <- duration(w.dn.filt)
+      
+      # Divide into evenly spaced bins (duration specified above)
+      bin.seq <- seq(from=0, to=dur.seconds, by=noise.subsamples)
+      
+      # Create a list of all the noise subsample bins to estimate noise
+      bin.seq.length <- length(bin.seq)-1
+      
+      # Create a list of shorter sound files to calculate noise
+      subsamps.1sec <- lapply(1:bin.seq.length, function(i) 
+        extractWave(w.dn.filt, 
+                    from=as.numeric(bin.seq[i]), to=as.numeric(bin.seq[i+1]), 
+                    xunit = c("time"),plot=F,output="Wave"))
+      
+      
+      
+      # Calculate noise for each noise time bin 
+      noise.list <- list()
+      
+      for (k in 1:length(subsamps.1sec)) { 
+        
+        # Read in .wav file 
+        temp.wave <- subsamps.1sec[[k]]
+        
+        # Normalise the values 
+        data <- (temp.wave@left) / (2 ^ 16/2)
+        
+        # Calibrate the data with the microphone sensitivity
+        data_cal <- data/ (10^(Sensitivity/20))
+        
+        # Calculate RMS
+        data_rms <- rms(data_cal)
+        
+        
+        noise.list[[k]] <- data_rms
+        
+      }
+      
+      OctaveBandnoiselist[[l]] <-  min(unlist(noise.list))
+    }
+    
+    noise.value <- median(unlist(OctaveBandnoiselist))
+    noise.valuedb <- 20 * log10((noise.value))
+    print(noise.valuedb)
+    temp.noise.df <- cbind.data.frame(short.wav,thirdoctaveband.data[m,]$low.freq,thirdoctaveband.data[m,]$high.freq,noise.valuedb,l)
+    colnames(temp.noise.df) <- c('wav.file','low.freq','high.freq','noise.valuedb','noise.file')
+    ThirdOctaveBandDF <- rbind.data.frame(ThirdOctaveBandDF,temp.noise.df)
+    write.csv(ThirdOctaveBandDF,'ThirdOctaveBandDFMaliau.csv')
+    
+  }
+  
+ maliau.plot <-  ggline(data=ThirdOctaveBandDF,
+         x='low.freq', y='noise.valuedb')+ggtitle('Maliau')
+  
+  print(maliau.plot)
   # Matches each selection with the corresponding noise and selection .wav file and calculate absolute receive level
   for(d in 1:nrow(singleplayback.df)){
     
