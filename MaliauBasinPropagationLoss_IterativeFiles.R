@@ -6,6 +6,7 @@
 # Version 3. Modify noise calculations so divide into ten 1-sec bins
 # Version 4. Remove adaptive noise estimates
 # Version 5. Ignores playbacks that overlap two recordings.
+# Version 6. Add playbacks over two recordings; filter before downsample to prevent aliasing
 
 # Part 1. Load necessary packages -------------------------------------------------------------
 library(seewave)
@@ -20,7 +21,7 @@ library(plotKML)
 # Part 2. Set up data -------------------------------------------------------------
 
 # Playback template table
-SelectionIDs <- 
+SelectionIDsMaliau <- 
   read.delim("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/SelectionLabels_S00974_20190811_101922_updated.txt")
 
 # Remove pulses
@@ -28,10 +29,10 @@ PulsesToRemove <- c(10,11,19,20,21,30,31,32,33,34,
                     44, 45, 53, 54, 55, 64,65,66,67,68,
                     78, 79, 87, 88, 89, 98,99,100,101,102)
 
-PlaybackSeq <- seq(1,nrow(SelectionIDs),1)
+PlaybackSeq <- seq(1,nrow(SelectionIDsMaliau),1)
 
 PlaybackSeqUpdated <- PlaybackSeq[-PulsesToRemove]
-SelectionIDs <- SelectionIDs[-PulsesToRemove,]
+SelectionIDsMaliau <- SelectionIDsMaliau[-PulsesToRemove,]
 
 # Sound file location
 SoundFiles.input <- 
@@ -153,8 +154,6 @@ file.name.index.sorted <- file.name.date.reorder$file.name.index
 
 # Create an empty dataframe to add to iteratively in the loop
 BackgroundNoiseRemovedDFMaliau <- data.frame()
-
-# NOTE for now skip recordings at 40 mins
 ThirdOctaveBandDF <- data.frame()
 # The loop to calculate inband power (after subtracting the noise) for each selection from the wave file
 for(b in 1:length(file.name.index.sorted)){tryCatch({ 
@@ -164,25 +163,61 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
   
   temp.time <- as.numeric(substr(temp.time,start = 3,stop=3))
   
-  if(temp.time==0){
   # Subset by recorder and date index
   singleplayback.df <- subset(BackgroundNoiseRemovedDFMaliau.test,file.name==file.name.index.sorted[b])
   
-  #singleplayback.df <-singleplayback.df[-PulsesToRemove,]
+  singleplayback.df <-singleplayback.df[-PulsesToRemove,]
+ 
   # Create sound file path
   
   soundfile.path <-  SoundFiles.input.list[str_detect(SoundFiles.input.list,singleplayback.df$file.name[1])]
   nslash <- str_count(soundfile.path,'/')
+  
+  if(temp.time!=0){
+    soundfile.path.index <-  which(str_detect(SoundFiles.input.list,file.name.index.sorted[b]))
+    short.wav <- str_split_fixed(soundfile.path,'/',nslash+1)[,nslash+1]
+    # Read in the long .wav file
+    wavfile.temp1 <- tuneR::readWave(soundfile.path)
+    
+    # Find wav file adjacent to link them
+    adjacent.path <- SoundFiles.input.list[soundfile.path.index+1]
+    wavfile.temp2 <-  tuneR::readWave(adjacent.path)
+    
+    filteredwaveformdownsample1<- bwfilter(wavfile.temp1, 
+                                          to=18000,
+                                          n=3)
+    wavfile.temp1@left <-  c(filteredwaveformdownsample1)
+    
+    filteredwaveformdownsample2<- bwfilter(wavfile.temp2, 
+                                          to=18000,
+                                          n=3)
+    wavfile.temp2@left <-  c(filteredwaveformdownsample2)
+    
+    # Combine both
+    wavfile.temp1@left <- c(wavfile.temp1@left,wavfile.temp2@left)
+    wavfile.temp <-  wavfile.temp1
+    print('Combined two wave files')
+    rm(wavfile.temp1)
+    rm(wavfile.temp2)
+  } else {
   short.wav <- str_split_fixed(soundfile.path,'/',nslash+1)[,nslash+1]
   # Read in the long .wav file
   wavfile.temp <- tuneR::readWave(soundfile.path)
+  # Filter before downsample to prevent aliasing
+  filteredwaveformdownsample<- bwfilter(wavfile.temp, 
+                                        to=18000,
+                                        n=3)
+  wavfile.temp@left <-  c(filteredwaveformdownsample)
   
   # Downsample so that comparable with C. Kalimantan recordings
   wavfile.temp <- tuneR::downsample(wavfile.temp,16000)
   
-  # Check to make sure number of selections matches the template
-  if(nrow(singleplayback.df)==nrow(SelectionIDs)){ 
+  }
+  
     
+  # Check to make sure number of selections matches the template
+  if(nrow(singleplayback.df)==nrow(SelectionIDsMaliau)){ 
+    print('Calculating receive levels')
   # Use the Raven selection table to cut each selection into an individual .wav file
   ListofWavs <- 
     lapply(1:nrow(singleplayback.df), function(x) cutw(wavfile.temp, from= (singleplayback.df$Begin.Time..s.[x]- signal.time.buffer),
@@ -203,8 +238,9 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
   for(m in 1:nrow(thirdoctaveband.data)){
     OctaveBandnoiselist <- list()
     # Calculate noise in 1/3 octave bands
+    print('Calculating noise for 1/3 octave bands')
     for(l in 1:length(NoiseWavList)){
-      print('Calculating noise for 1/3 octave bands')
+     
       # Take the corresponding noise file
       NoiseWavetemp <- NoiseWavList[[l]]
       
@@ -222,7 +258,7 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
       w.dn.filt <- NoiseWavetemp
       
       # Calculate the duration of the sound file
-      dur.seconds <- duration(w.dn.filt)
+      dur.seconds <- seewave::duration(w.dn.filt)
       
       # Divide into evenly spaced bins (duration specified above)
       bin.seq <- seq(from=0, to=dur.seconds, by=noise.subsamples)
@@ -266,17 +302,14 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
     noise.value <- median(unlist(OctaveBandnoiselist))
     noise.valuedb <- 20 * log10((noise.value))
     print(noise.valuedb)
-    temp.noise.df <- cbind.data.frame(short.wav,thirdoctaveband.data[m,]$low.freq,thirdoctaveband.data[m,]$high.freq,noise.valuedb,l)
-    colnames(temp.noise.df) <- c('wav.file','low.freq','high.freq','noise.valuedb','noise.file')
+    temp.noise.df <- cbind.data.frame(short.wav,thirdoctaveband.data[m,]$center.freq,thirdoctaveband.data[m,]$high.freq,noise.valuedb,l)
+    colnames(temp.noise.df) <- c('wav.file','center.freq','high.freq','noise.valuedb','noise.file')
     ThirdOctaveBandDF <- rbind.data.frame(ThirdOctaveBandDF,temp.noise.df)
     write.csv(ThirdOctaveBandDF,'ThirdOctaveBandDFMaliau.csv')
     
   }
   
- maliau.plot <-  ggline(data=ThirdOctaveBandDF,
-         x='low.freq', y='noise.valuedb')+ggtitle('Maliau')
-  
-  print(maliau.plot)
+
   # Matches each selection with the corresponding noise and selection .wav file and calculate absolute receive level
   for(d in 1:nrow(singleplayback.df)){
     
@@ -305,7 +338,7 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
    w.dn.filt <- NoiseWavetemp
    
    # Calculate the duration of the sound file
-   dur.seconds <- duration(w.dn.filt)
+   dur.seconds <- seewave::duration(w.dn.filt)
    
    # Divide into evenly spaced bins (duration specified above)
    bin.seq <- seq(from=0, to=dur.seconds, by=noise.subsamples)
@@ -373,20 +406,19 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
       # Calculate noise level in dB
       Selectiontemp$NoisevalueDb <- 20 * log10((noise.value))
       
-      Selectiontemp$Sound.Type <-  SelectionIDs[d,]$Sound.Type
+      Selectiontemp$Sound.Type <-  SelectionIDsMaliau[d,]$Sound.Type
       
       # Print the output
       print(Selectiontemp)
       
       # Combine into a dataframe
       BackgroundNoiseRemovedDFMaliau <- rbind.data.frame(BackgroundNoiseRemovedDFMaliau,Selectiontemp)
-      write.csv(BackgroundNoiseRemovedDFMaliau,'BackgroundNoiseRemovedMaliauMay2022.csv')
+      write.csv(BackgroundNoiseRemovedDFMaliau,'BackgroundNoiseRemovedMaliauJune2022.csv')
   }
   
   }
-  }
 }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
-
+rm(wavfile.temp)
 }
 
 BackgroundNoiseRemovedDFMaliau <- read.csv("BackgroundNoiseRemovedMaliauMay2022.csv")
@@ -415,7 +447,7 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({
   
   # Create an index for each unique file in the playback
   file.index <- unique(temp.playback$file.name)
-  SelectionIndex <- (SelectionIDs$Sound.Type)
+  SelectionIndex <- (SelectionIDsMaliau$Sound.Type)
   
   # This isolates each selection in the original template one by one
   for(a in 1:length(SelectionIndex)){
@@ -424,7 +456,7 @@ for(z in 1:length(unique.date.time.combo)) { tryCatch({
     small.sample.playback.test <- data.frame()
     for(b in 1:length(file.index) ){
       temp.table <- subset(temp.playback,file.name==file.index[b])
-      temp.table$Sound.Type <- SelectionIDs$Sound.Type
+      temp.table$Sound.Type <- SelectionIDsMaliau$Sound.Type
       temp.table <- temp.table[a,]
       small.sample.playback.test <- rbind.data.frame(small.sample.playback.test,temp.table )
     }

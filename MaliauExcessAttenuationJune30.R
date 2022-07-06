@@ -4,6 +4,31 @@ PredictedSpreadingMaliau <- subset(PredictedSpreading,Site=='Maliau')
 
 head(MaliauDF)
 
+# Read in GPS data
+recorder.gps <- plotKML::readGPX("/Users/denaclink/Downloads/MB Playbacks 50 m.GPX") 
+
+
+# Convert name so that it matches dataframe
+recorder.gps$waypoints$name <- str_remove(recorder.gps$waypoints$name, '0')
+
+# Subset only necessary columns from GPS data
+small.gps.df <- recorder.gps$waypoints[,c('lon','lat','name')]
+colnames(small.gps.df) <- c('lon','lat','recorder')
+
+# Combine into a distance matrix
+xy.coords <- cbind(c(small.gps.df$lon), 
+                   c(small.gps.df$lat))
+
+dist.mat <- distm( xy.coords, fun = distHaversine)
+
+# Add recorder names to distance matrix
+colnames(dist.mat) <- c(as.character(small.gps.df$recorder))
+rownames(dist.mat) <- c(as.character(small.gps.df$recorder))
+
+# Check output
+dput((dist.mat+17)[,1])
+
+
 # Create an index with unique date/time combinations
 date.time.combo <- paste(MaliauDF$date,MaliauDF$time,sep='_')
 unique.date.time.combo <- unique(date.time.combo)
@@ -27,7 +52,7 @@ for(z in 1:4) { tryCatch({
   
   # Create an index for each unique file in the playback
   file.index <- unique(temp.playback$file.name)
-  SelectionIndex <- (SelectionIDs$Sound.Type)
+  SelectionIndex <- (SelectionIDsMaliau$Sound.Type)
   
   # This isolates each selection in the original template one by one
   for(a in 1:length(SelectionIndex)){
@@ -36,7 +61,7 @@ for(z in 1:4) { tryCatch({
     small.sample.playback.test <- data.frame()
     for(b in 1:length(file.index) ){
       temp.table <- subset(temp.playback,file.name==file.index[b])
-      temp.table$Sound.Type <- SelectionIDs$Sound.Type
+      temp.table$Sound.Type <- SelectionIDsMaliau$Sound.Type
       temp.table <- temp.table[a,]
       small.sample.playback.test <- rbind.data.frame(small.sample.playback.test,temp.table )
     }
@@ -128,6 +153,8 @@ for(z in 1:4) { tryCatch({
 
 observed.prop.lossMaliauSubset <- subset(observed.prop.lossMaliau,Sound.type=="1_PwurP_P1" |Sound.type== "3_Hfunstart")
 ggscatter(data=observed.prop.lossMaliauSubset, y='distance',
-            x='ExcessAttenuation',color = 'time',facet.by = 'Sound.type')+ylim(0,400)+ geom_jitter(width = 1.5, height = 1)
+            x='ExcessAttenuation',color = 'time',facet.by = 'Sound.type')+ylim(0,500)+ geom_jitter(width = 1.5, height = 1)
 
-subset(observed.prop.lossMaliau,distance== 0)
+#subset(observed.prop.lossMaliau,distance== 0)
+MaliauPlot <- ggscatter(data=observed.prop.lossMaliauSubset, y='distance',
+                        x='ExcessAttenuation',color = 'Sound.type',facet.by = 'Sound.type')+ylim(0,500)+ geom_jitter(width = 1.5, height = 1)
