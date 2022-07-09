@@ -173,8 +173,9 @@ combined.template.table.test.add.dist <-
 # combined.template.table.test.add.dist <-
 #    subset(combined.template.table.test.add.dist,
 #             recorder==91 |recorder==88 | recorder==87 |
-#             recorder == 'char1'| recorder==68 |recorder==73 | recorder==74 | recorder == 'char3'  )
-# 
+#             recorder == 'char1'| 
+#               recorder==68 |recorder==73 | recorder==74 | recorder == 'char3'  )
+
 
 # Create an index for each file
 file.name.index <- unique(combined.template.table.test.add.dist$Loc_Name)
@@ -331,7 +332,7 @@ for(b in 1:length(file.name.index)){tryCatch({
       
       # Combine into a dataframe
       BackgroundNoiseRemovedDF <- rbind.data.frame(BackgroundNoiseRemovedDF,Selectiontemp)
-      write.csv(BackgroundNoiseRemovedDF,'BackgroundNoiseRemovedDFSept2021.csv',row.names = F)
+      write.csv(BackgroundNoiseRemovedDF,'BackgroundNoiseRemovedDFJune2022Rungan.csv',row.names = F)
     }
 
     
@@ -430,9 +431,9 @@ for(z in 1:length(Loc_Name.index)) { tryCatch({
     
     # Create a new column with receive levels standardized so the closest recorder is 0
     small.sample.playback.test$PowerDb.zero <- 
-      small.sample.playback.test$PowerDb-small.sample.playback.test$PowerDb[1]
+      small.sample.playback.test$PowerDb[1]-small.sample.playback.test$PowerDb
     
-    small.sample.playback.test
+    small.sample.playback.test$distance.from.source
     
     # Loop to calculate propagation loss
     for(c in 1: (length(recorder.index.test)-1)){tryCatch({ 
@@ -444,7 +445,7 @@ for(z in 1:length(Loc_Name.index)) { tryCatch({
       temp.recorder.source <- subset(small.sample.playback.test,distance.from.source==recorder.index.test[c-1])
       
       # Based on our distance matrix above calculate the distance between the two recorders
-      distance.from.source <- temp.recorder.received$distance.from.source
+      distance.from.source <- as.numeric(temp.recorder.received$distance.from.source) - as.numeric(temp.recorder.source$distance.from.source)
         
       # Assign the actual receive level (not zeroed) to new variable
       actual.receive.level <- temp.recorder.received$PowerDb
@@ -467,6 +468,10 @@ for(z in 1:length(Loc_Name.index)) { tryCatch({
       # Calculate the 'magic x'
       magic.x <-  zero.receive.level/dist.ratio
       
+      # Calculate excess attenuation
+      
+      excess.attenuation <- magic.x -6
+      
       # Assign sound type to new variable
       Sound.type <- temp.recorder.received$Sound.Type
       
@@ -478,7 +483,7 @@ for(z in 1:length(Loc_Name.index)) { tryCatch({
       
       pb.id <- Loc_Name.index[z]
       # Combine all into a new temp dataframe
-      temp.df <- cbind.data.frame(zero.receive.level,actual.receive.level,source.level,distance,Sound.type,time,date,magic.x,noise.level,
+      temp.df <- cbind.data.frame(zero.receive.level,actual.receive.level,source.level,distance,Sound.type,time,date,magic.x,excess.attenuation,noise.level,
                                   pb.id)
       
       # Combine all observations into one dataframe
@@ -490,6 +495,11 @@ for(z in 1:length(Loc_Name.index)) { tryCatch({
 }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
   
 }
+
+unique(observed.prop.loss$Sound.type)
+
+(observed.prop.loss$excess.attenuation)
+mean(observed.prop.loss$magic.x)
 
 
 observed.prop.loss$sound.type.for.median <- str_split_fixed (observed.prop.loss$Sound.type, pattern = '_',n=2)[,2]
@@ -534,7 +544,7 @@ for(a in 1:length(pb.id.index)){
 }
 
 
-
+head(observed.prop.loss)
 # Subset so we focus on primates
 observed.prop.loss.subset <- subset(observed.prop.loss,
                                     Sound.category=="Hfunstart" |Sound.category=="Hfuntrill" 
@@ -553,7 +563,7 @@ observed.prop.loss.subset$Sound.category <-
                   PwurS="Orangutan C. Kali Sigh"))
 
 # Plot observed change in receive level by distance
-observed.prop.loss.subset.site1 <-observed.prop.loss.subset# subset(observed.prop.loss.subset,pb.id =='2 (S4A07369)')
+observed.prop.loss.subset.site1 <-subset(observed.prop.loss.subset,pb.id =='5 (S4A07578)')
 site1.plot <- ggpubr::ggscatter(data = observed.prop.loss.subset.site1,x='distance', 
                   y='actual.receive.level',
                   color='Sound.category',
@@ -561,7 +571,7 @@ site1.plot <- ggpubr::ggscatter(data = observed.prop.loss.subset.site1,x='distan
                   add = c("loess"),title='3 (S4A07867)')+
   xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
 
-site1.plot
+site1.plot 
 
 # Plot observed change in receive level by distance
 observed.prop.loss.subset.site2 <- subset(observed.prop.loss.subset,pb.id =='7 (S4A07360)')
@@ -573,6 +583,11 @@ site2.plot <- ggpubr::ggscatter(data = observed.prop.loss.subset.site2,x='distan
   xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
 
 cowplot::plot_grid(site1.plot,site2.plot)
+
+observed.prop.loss.subset$distance <- as.factor(observed.prop.loss.subset$distance)
+ggboxplot(data=observed.prop.loss.subset,x='Sound.category',y='magic.x',
+          fill='distance')
+
 
 # Plot observed change in receive level by distance for all signals
 ggpubr::ggscatter(data = observed.prop.loss,x='distance', y='actual.receive.level',
@@ -587,7 +602,7 @@ hist(observed.prop.loss.subset$magic.x)
 
 # We can subset by sound category- here it is by "Hfunstart"
 playback.line.1 <- median(na.omit(subset(observed.prop.loss,
-                                         Sound.category=="Pwur")$magic.x))
+                                         Sound.category=="Halbstart")$magic.x))
 
 # Or we can combine all of our data
 #playback.line.1 <- median(na.omit(observed.prop.loss$magic.x))
@@ -615,7 +630,7 @@ ggplot(data = attenuation.df,aes(x=X, y=Value,group=Label, colour=Label,linetype
   scale_linetype_manual(values=c( "solid","twodash", "dotted"))+
   theme(axis.text=element_text(size=12), axis.title=element_text(size=12,face="bold"))+
   xlab("Distance from source (m)") + ylab("Amplitude (dB)")+
-  ylim(-100,0)+
+  ylim(-60,0)+
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 
 

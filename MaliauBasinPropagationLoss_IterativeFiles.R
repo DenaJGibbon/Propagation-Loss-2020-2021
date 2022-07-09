@@ -68,7 +68,7 @@ gain <- 40
 Sensitivity <- -137.9794 + gain - 0.9151 # dB relative to 1 volt per pascal
 
 # Set distance of first recorder to playback speaker (in meters)
-dist.to.playback <- 17.21
+dist.to.playback <- 26.4
 
 # Read in selection tables with full file path names
 selection.tables <- 
@@ -152,11 +152,14 @@ file.name.date.reorder <- file.name.date[order(file.name.date$date.only), ]
 
 file.name.index.sorted <- file.name.date.reorder$file.name.index
 
+# Remove recordings with gibbons calling and from 25-m spacing line
+file.name.index.sorted <- file.name.index.sorted[-c(1:4,167:202)]
+
 # Create an empty dataframe to add to iteratively in the loop
 BackgroundNoiseRemovedDFMaliau <- data.frame()
 ThirdOctaveBandDF <- data.frame()
 # The loop to calculate inband power (after subtracting the noise) for each selection from the wave file
-for(b in 1:length(file.name.index.sorted)){tryCatch({ 
+for(b in 35:length(file.name.index.sorted)){ tryCatch({ 
   print(paste('processing sound file',file.name.index.sorted[b] ))
   
   temp.time <- str_split_fixed(file.name.index.sorted[b],pattern = '_',n=3)[,3]
@@ -199,6 +202,7 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
     print('Combined two wave files')
     rm(wavfile.temp1)
     rm(wavfile.temp2)
+    rm(filteredwaveformdownsample1)
   } else {
   short.wav <- str_split_fixed(soundfile.path,'/',nslash+1)[,nslash+1]
   # Read in the long .wav file
@@ -211,7 +215,7 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
   
   # Downsample so that comparable with C. Kalimantan recordings
   wavfile.temp <- tuneR::downsample(wavfile.temp,16000)
-  
+  rm(filteredwaveformdownsample)
   }
   
     
@@ -413,15 +417,22 @@ for(b in 1:length(file.name.index.sorted)){tryCatch({
       
       # Combine into a dataframe
       BackgroundNoiseRemovedDFMaliau <- rbind.data.frame(BackgroundNoiseRemovedDFMaliau,Selectiontemp)
-      write.csv(BackgroundNoiseRemovedDFMaliau,'BackgroundNoiseRemovedMaliauJune2022.csv')
+      write.csv(BackgroundNoiseRemovedDFMaliau,'BackgroundNoiseRemovedMaliauJuly2022.csv',row.names = F)
   }
   
   }
 }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
 rm(wavfile.temp)
+rm(ListofWavs)
+rm(NoiseWav1)
+rm(NoiseWav2)
+rm(NoiseWavList)
+rm(filteredwaveform)
+rm(filteredwaveformdownsample)
+rm(filteredwaveformdownsample2)
 }
 
-BackgroundNoiseRemovedDFMaliau <- read.csv("BackgroundNoiseRemovedMaliauMay2022.csv")
+BackgroundNoiseRemovedDFMaliau <- read.csv("BackgroundNoiseRemovedMaliauJuly2022.csv")
 
 # Part 5. Propagation Loss --------------------------------------------------------
 

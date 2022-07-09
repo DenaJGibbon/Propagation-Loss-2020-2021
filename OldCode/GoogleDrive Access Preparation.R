@@ -1,4 +1,6 @@
 library("googledrive")
+googledrive::drive_auth()
+
 Folder.list.tibble <- drive_find(type = "folder")
 
 Folder.list.tibble[1,]$id

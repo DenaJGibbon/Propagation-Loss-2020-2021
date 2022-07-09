@@ -1,8 +1,25 @@
-MaliauDF <- read.csv("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/BackgroundNoiseRemovedMaliauJune2022.csv")
+# Playback template table
+SelectionIDsMaliau <- 
+  read.delim("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/SelectionLabels_S00974_20190811_101922_updated.txt")
+
+# Remove pulses
+PulsesToRemove <- c(10,11,19,20,21,30,31,32,33,34,
+                    44, 45, 53, 54, 55, 64,65,66,67,68,
+                    78, 79, 87, 88, 89, 98,99,100,101,102)
+
+PlaybackSeq <- seq(1,nrow(SelectionIDsMaliau),1)
+
+PlaybackSeqUpdated <- PlaybackSeq[-PulsesToRemove]
+SelectionIDsMaliau <- SelectionIDsMaliau[-PulsesToRemove,]
+
+
+MaliauDF <- read.csv("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/BackgroundNoiseRemovedMaliauJuly2022.csv")
 PredictedSpreading <- read.csv("/Users/denaclink/Desktop/RStudio Projects/Propagation-Loss-2020-2021/Predicted_dB_Spherical.csv")
 PredictedSpreadingMaliau <- subset(PredictedSpreading,Site=='Maliau')
 
 head(MaliauDF)
+table(MaliauDF$date)
+unique(MaliauDF$time)
 
 # Read in GPS data
 recorder.gps <- plotKML::readGPX("/Users/denaclink/Downloads/MB Playbacks 50 m.GPX") 
@@ -38,7 +55,7 @@ unique.date.time.combo <- unique(date.time.combo)
 observed.prop.lossMaliau <- data.frame()
 DoublingDistanceDF <- data.frame()
 # Loop to calculate propagation loss
-for(z in 1:4) { tryCatch({ 
+for(z in 1:length(unique.date.time.combo)) { tryCatch({ 
   
   # Subset by unique date/time index
   temp.date.time.subset <- 
@@ -139,7 +156,7 @@ for(z in 1:4) { tryCatch({
       # Combine all into a new temp dataframe
       temp.df <- cbind.data.frame(zero.receive.level,actual.receive.level,source.level,distance,Sound.type,time,date,magic.x,noise.level,ExcessAttenuation)
       
-      # Combine all observations into one dataframe
+      # Combine all observations into one data frame
       observed.prop.lossMaliau <- rbind.data.frame(observed.prop.lossMaliau,temp.df)
       
     }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
@@ -151,10 +168,107 @@ for(z in 1:4) { tryCatch({
   
 }
 
-observed.prop.lossMaliauSubset <- subset(observed.prop.lossMaliau,Sound.type=="1_PwurP_P1" |Sound.type== "3_Hfunstart")
+observed.prop.lossMaliau$ExcessAttenuation <- round(as.numeric(observed.prop.lossMaliau$ExcessAttenuation),2)
+observed.prop.lossMaliau$time <- as.factor(observed.prop.lossMaliau$time)
+observed.prop.lossMaliau$Call.category <- str_split_fixed(observed.prop.lossMaliau$Sound.type,pattern = '_',n=3)[,2]
+observed.prop.lossMaliau$distance <- round(observed.prop.lossMaliau$distance,0)
+observed.prop.lossMaliauSubset <- subset(observed.prop.lossMaliau,Call.category=="Pmor" | Call.category=="Hfuntrill" |Call.category== "Hfunstart")
+
+ggboxplot(data=observed.prop.lossMaliauSubset, x='distance',
+            y='ExcessAttenuation',fill = 'time',facet.by = 'Call.category')#+ylim(0,500)
+
 ggscatter(data=observed.prop.lossMaliauSubset, y='distance',
-            x='ExcessAttenuation',color = 'time',facet.by = 'Sound.type')+ylim(0,500)+ geom_jitter(width = 1.5, height = 1)
+          x='ExcessAttenuation',color = 'time',facet.by = 'Call.category')#+ylim(0,500)
+
+
+observed.prop.lossMaliauSubsetPmor <- subset(observed.prop.lossMaliau,Call.category=="Pmor")
+ggboxplot(data=observed.prop.lossMaliauSubsetPmor, x='distance',
+          y='ExcessAttenuation',fill = 'time',facet.by = 'Sound.type')#+ylim(0,500)
 
 #subset(observed.prop.lossMaliau,distance== 0)
 MaliauPlot <- ggscatter(data=observed.prop.lossMaliauSubset, y='distance',
                         x='ExcessAttenuation',color = 'Sound.type',facet.by = 'Sound.type')+ylim(0,500)+ geom_jitter(width = 1.5, height = 1)
+
+
+
+# Median values -----------------------------------------------------------
+# Take the median value for replicate selections
+RecorderDateTime.index <- unique(paste(observed.prop.lossMaliau$distance,
+                                       observed.prop.lossMaliau$date,
+                                       observed.prop.lossMaliau$time,sep='_'))
+
+observed.prop.lossMaliau$RecorderDateTime <- unique(paste(#observed.prop.lossMaliau$distance,
+  observed.prop.lossMaliau$date,
+  observed.prop.lossMaliau$time,sep='_'))
+
+observed.prop.lossMaliau$sound.type.for.median <- str_split_fixed (observed.prop.lossMaliau$Sound.type, pattern = '_',n=2)[,2]
+
+# Isolate sound category names
+observed.prop.lossMaliau$Sound.category <- 
+  str_split_fixed(observed.prop.lossMaliau$Sound.type, pattern = '_',n=3)[,2]
+
+
+observed.prop.lossMaliau.median.df <- data.frame()
+
+for(a in 1:length(RecorderDateTime.index)){
+  temp.observed <-  subset(observed.prop.lossMaliau,RecorderDateTime==RecorderDateTime[a])
+  
+  sound.type.index <- 
+    unique(temp.observed$sound.type.for.median  )
+  
+  distance.index <- unique(temp.observed$distance  )
+  
+  for(b in 1:length(sound.type.index)){
+    
+    temp.subset <- subset(temp.observed,sound.type.for.median==sound.type.index[b])
+    
+    for(c in 1:length(distance.index)){
+      
+      temp.subset.distance <-  subset(temp.subset,distance==distance.index[c])
+      median.x <- median(temp.subset.distance$magic.x) 
+      
+      temp.subset.distance <- temp.subset.distance[1,c("distance", "actual.receive.level","Sound.type", "time", "date", "magic.x", 
+                                                       "RecorderDateTime", "sound.type.for.median", "Sound.category")]
+      
+      temp.subset.distance$median.x <- median.x
+      observed.prop.lossMaliau.median.df <- rbind.data.frame(observed.prop.lossMaliau.median.df,temp.subset.distance)
+    }
+  }
+  
+}
+
+observed.prop.lossMaliau.median.df <- na.omit(observed.prop.lossMaliau.median.df)
+
+# Subset so we focus on primates
+observed.prop.lossMaliau.subset <-  subset(observed.prop.lossMaliau.median.df,
+                                           Sound.category=="Hfunstart" |Sound.category=="Hfuntrill" 
+                                           |Sound.category=="Halbpeak"
+                                           |Sound.category=="Halbend"
+                                           |Sound.category=="Pmor"|Sound.category=="PwurP"|Sound.category=="PwurS") #
+
+# Give more informative names
+observed.prop.lossMaliau.subset$Sound.category <- 
+  plyr::revalue(observed.prop.lossMaliau.subset$Sound.category,
+                c(Halbpeak= "Gibbon C. Kali Peak",Halbend= "Gibbon C. Kali End",
+                  Hfunstart = "Gibbon Sabah Intro",
+                  Hfuntrill = "Gibbon Sabah Trill",Pmor="Orangutan Sabah", 
+                  PwurP="Orangutan C. Kali Pulse",
+                  PwurS="Orangutan C. Kali Sigh"))
+
+# Plot observed change in receive level by distance
+MaliauPlot <- ggpubr::ggscatter(data = observed.prop.lossMaliau.subset,
+                                x='distance', y='actual.receive.level',
+                                color='time',
+                                facet.by = 'Sound.category',xlim=c(0,400), #ylim=c(-70,-20),
+                                add = c("loess"),title='')+
+  xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")+ggtitle('Maliau')
+
+MaliauPlot
+# Plot observed change in receive level by distance for all signals
+ggpubr::ggscatter(data = observed.prop.lossMaliauSubset,x='ExcessAttenuation', y='distance',
+                  color='time',
+                  facet.by = 'Call.category',#xlim=c(0,300), #ylim=c(-70,-20),
+                  add = c("loess"),title='')+
+  xlab('Distance (m)')+ ylab('Receive Level (dB)')+ theme(legend.position = "none")
+
+

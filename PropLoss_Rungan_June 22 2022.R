@@ -1,5 +1,4 @@
 # This is the R code to estimate propagation loss in Borneo 
-# Testing 123
 
 
 # NOTES: In this setup both the recorders and the playback speakers were moving
@@ -37,14 +36,14 @@ SelectionIDs <-
 #NOTE that there are two Pwur call types
 
 # Remove pulses
-PulsesToRemove <- c(10,11,19,20,21,30,31,32,33,34,
-                    44, 45, 53, 54, 55, 64,65,66,67,68,
-                    78, 79, 87, 88, 89, 98,99,100,101,102)
-
-PlaybackSeq <- seq(1,nrow(SelectionIDs),1)
-
-PlaybackSeqUpdated <- PlaybackSeq[-PulsesToRemove]
-#SelectionIDs <- SelectionIDs[-PulsesToRemove,]
+# PulsesToRemove <- c(10,11,19,20,21,30,31,32,33,34,
+#                     44, 45, 53, 54, 55, 64,65,66,67,68,
+#                     78, 79, 87, 88, 89, 98,99,100,101,102)
+# 
+# PlaybackSeq <- seq(1,nrow(SelectionIDs),1)
+# 
+# PlaybackSeqUpdated <- PlaybackSeq[-PulsesToRemove]
+# SelectionIDs <- SelectionIDs[-PulsesToRemove,]
 
 # Sound file location
 SoundFiles.input <- 
@@ -161,15 +160,15 @@ combined.template.table.test.add.dist$Loc_Name <-
   as.factor(combined.template.table.test.add.dist$Loc_Name)
 
 # Subset so can focus on one series of playbacks -- NOTE:this is for trouble-shooting only
-combined.template.table.test.add.dist <-
-  subset(combined.template.table.test.add.dist,
-         recorder==68 |recorder==73 | recorder==74 |
-           recorder==42 |recorder==112 | recorder==74 | recorder ==49 |
-           recorder==84 |recorder==34 | recorder==91 | recorder ==79 |
-           recorder==43 |recorder==111 | recorder==73 | recorder ==46 |
-           recorder==85 |recorder==36 | recorder==88 | recorder ==80 |
-           recorder==68 |recorder==45 | recorder==87 |
-           recorder == 'char1' |recorder == 'char2' |recorder == 'char3' )
+# combined.template.table.test.add.dist <-
+#   subset(combined.template.table.test.add.dist,
+#          recorder==68 |recorder==73 | recorder==74 |
+#            recorder==42 |recorder==112 | recorder==74 | recorder ==49 |
+#            recorder==84 |recorder==34 | recorder==91 | recorder ==79 |
+#            recorder==43 |recorder==111 | recorder==73 | recorder ==46 |
+#            recorder==85 |recorder==36 | recorder==88 | recorder ==80 |
+#            recorder==68 |recorder==45 | recorder==87 |
+#            recorder == 'char1' |recorder == 'char2' |recorder == 'char3' )
 
 # This subset contains 3 distance classes in two habitat types
 # combined.template.table.test.add.dist <-
@@ -185,9 +184,9 @@ file.name.index <- unique(combined.template.table.test.add.dist$Loc_Name)
 
 
 # Create an empty dataframe to add to iteratively in the loop
-BackgroundNoiseRemovedDF <- data.frame()
+BackgroundNoiseRemovedDFRungan <- data.frame()
 
-ThirdOctaveBandDF <- data.frame()
+ThirdOctaveBandDFRungan <- data.frame()
 
 # The loop to calculate inband power (after subtracting the noise) for each selection from the wave file
 for(b in 1:length(file.name.index)){tryCatch({
@@ -299,10 +298,10 @@ for(b in 1:length(file.name.index)){tryCatch({
     noise.value <- median(unlist(OctaveBandnoiselist))
     noise.valuedb <- 20 * log10((noise.value))
     print(noise.valuedb)
-    temp.noise.df <- cbind.data.frame(Rungan.playbacks.wav.files$name[wav.file.index],thirdoctaveband.data[m,]$low.freq,thirdoctaveband.data[m,]$high.freq,noise.valuedb,l)
-    colnames(temp.noise.df) <- c('wav.file','low.freq','high.freq','noise.valuedb','noise.file')
-    ThirdOctaveBandDF <- rbind.data.frame(ThirdOctaveBandDF,temp.noise.df)
-    write.csv(ThirdOctaveBandDF,'ThirdOctaveBandDFRungan.csv')
+    temp.noise.df <- cbind.data.frame(Rungan.playbacks.wav.files$name[wav.file.index],thirdoctaveband.data[m,]$center.freq,thirdoctaveband.data[m,]$high.freq,noise.valuedb,l)
+    colnames(temp.noise.df) <- c('wav.file','center.freq','high.freq','noise.valuedb','noise.file')
+    ThirdOctaveBandDFRungan <- rbind.data.frame(ThirdOctaveBandDFRungan,temp.noise.df)
+    write.csv(ThirdOctaveBandDFRungan,'ThirdOctaveBandDFRunganRungan.csv')
       
       }
 
@@ -411,8 +410,8 @@ for(b in 1:length(file.name.index)){tryCatch({
       print(Selectiontemp)
       
       # Combine into a dataframe
-      BackgroundNoiseRemovedDF <- rbind.data.frame(BackgroundNoiseRemovedDF,Selectiontemp)
-      write.csv(BackgroundNoiseRemovedDF,'BackgroundNoiseRemovedDFJune2022Rungan.csv',row.names = F)
+      BackgroundNoiseRemovedDFRungan <- rbind.data.frame(BackgroundNoiseRemovedDFRungan,Selectiontemp)
+      write.csv(BackgroundNoiseRemovedDFRungan,'BackgroundNoiseRemovedDFRunganJune2022.csv',row.names = F)
     }
 
     
@@ -426,23 +425,25 @@ for(b in 1:length(file.name.index)){tryCatch({
 
 
 # Reference only has one set of playbacks so want to append   
-BackgroundNoiseRemovedDF_char1 <-subset(BackgroundNoiseRemovedDF, Loc_Name == 'char1')
-BackgroundNoiseRemovedDF_char1 <- rbind.data.frame(BackgroundNoiseRemovedDF_char1,BackgroundNoiseRemovedDF_char1 ,BackgroundNoiseRemovedDF_char1)
-BackgroundNoiseRemovedDF_char1$Selection <- SelectionIDs$Selection
-BackgroundNoiseRemovedDF_char1$Sound.Type <- SelectionIDs$Sound.Type
+BackgroundNoiseRemovedDFRungan_char1 <-subset(BackgroundNoiseRemovedDFRungan, Loc_Name == 'char1')
+BackgroundNoiseRemovedDFRungan_char1 <- rbind.data.frame(BackgroundNoiseRemovedDFRungan_char1,BackgroundNoiseRemovedDFRungan_char1 ,BackgroundNoiseRemovedDFRungan_char1)
+BackgroundNoiseRemovedDFRungan_char1$Selection <- SelectionIDs$Selection
+BackgroundNoiseRemovedDFRungan_char1$Sound.Type <- SelectionIDs$Sound.Type
 
-BackgroundNoiseRemovedDF_char2 <-subset(BackgroundNoiseRemovedDF, Loc_Name == 'char2')
-BackgroundNoiseRemovedDF_char2 <- rbind.data.frame(BackgroundNoiseRemovedDF_char2,BackgroundNoiseRemovedDF_char2 ,BackgroundNoiseRemovedDF_char2)
-BackgroundNoiseRemovedDF_char2$Selection <- SelectionIDs$Selection
-BackgroundNoiseRemovedDF_char2$Sound.Type <- SelectionIDs$Sound.Type
+BackgroundNoiseRemovedDFRungan_char2 <-subset(BackgroundNoiseRemovedDFRungan, Loc_Name == 'char2')
+BackgroundNoiseRemovedDFRungan_char2 <- rbind.data.frame(BackgroundNoiseRemovedDFRungan_char2,BackgroundNoiseRemovedDFRungan_char2 ,BackgroundNoiseRemovedDFRungan_char2)
+BackgroundNoiseRemovedDFRungan_char2$Selection <- SelectionIDs$Selection
+BackgroundNoiseRemovedDFRungan_char2$Sound.Type <- SelectionIDs$Sound.Type
 
-BackgroundNoiseRemovedDF_char3 <-subset(BackgroundNoiseRemovedDF, Loc_Name == 'char3')
-BackgroundNoiseRemovedDF_char3 <- rbind.data.frame(BackgroundNoiseRemovedDF_char3,BackgroundNoiseRemovedDF_char3 ,BackgroundNoiseRemovedDF_char3)
-BackgroundNoiseRemovedDF_char3$Selection <- SelectionIDs$Selection
-BackgroundNoiseRemovedDF_char3$Sound.Type <- SelectionIDs$Sound.Type
+BackgroundNoiseRemovedDFRungan_char3 <-subset(BackgroundNoiseRemovedDFRungan, Loc_Name == 'char3')
+BackgroundNoiseRemovedDFRungan_char3 <- rbind.data.frame(BackgroundNoiseRemovedDFRungan_char3,BackgroundNoiseRemovedDFRungan_char3 ,BackgroundNoiseRemovedDFRungan_char3)
+BackgroundNoiseRemovedDFRungan_char3$Selection <- SelectionIDs$Selection
+BackgroundNoiseRemovedDFRungan_char3$Sound.Type <- SelectionIDs$Sound.Type
 
-BackgroundNoiseRemovedDF <- subset(BackgroundNoiseRemovedDF,Loc_Name != 'char3')
-CombinedDF <-rbind.data.frame(BackgroundNoiseRemovedDF,BackgroundNoiseRemovedDF_char1)
+#BackgroundNoiseRemovedDFRungan <- subset(BackgroundNoiseRemovedDFRungan,Loc_Name != 'char3')
+CombinedDF <-rbind.data.frame(BackgroundNoiseRemovedDFRungan,BackgroundNoiseRemovedDFRungan_char1,BackgroundNoiseRemovedDFRungan_char2,BackgroundNoiseRemovedDFRungan_char3)
+
+write.csv(CombinedDF,'BackgroundNoiseRemovedDFRunganJuly2022.csv',row.names = F)
 
 # Part 5. Propagation Loss --------------------------------------------------------
 
@@ -741,9 +742,9 @@ ggpubr::ggscatter(data = observed.prop.loss.x.dist,x='distance', y='actual.recei
 ggpubr::ggboxplot(data=observed.prop.loss.subset,
                   x='Sound.category',y='noise.level')
 
-colnames(ThirdOctaveBandDF)
-ThirdOctaveBandDF$noise.file <- as.factor(ThirdOctaveBandDF$noise.file)
-ggline(data=ThirdOctaveBandDF,x="low.freq",y="noise",color="noise.file" )+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+colnames(ThirdOctaveBandDFRungan)
+ThirdOctaveBandDFRungan$noise.file <- as.factor(ThirdOctaveBandDFRungan$noise.file)
+ggline(data=ThirdOctaveBandDFRungan,x="low.freq",y="noise",color="noise.file" )+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 
 
