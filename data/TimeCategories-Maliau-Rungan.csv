@@ -1,0 +1,17 @@
+﻿Site,Time Start,Time End,Class,Description
+Maliau,5:08,6:07,Predawn,Hour before sunrise
+Maliau,6:08,7:07,Dawn,Hour after sunrise
+Maliau,7:08,11:44,Morning,Between dawn and midday
+Maliau,11:45,12:44,Midday,Hour centered on solar noon
+Maliau,12:15,17:21,Aftenoon,Between midday and predusk
+Maliau,17:22,18:21,Predusk,Hour before sunset
+Maliau,18:22,19:21,Dusk,Hour after sunset
+Maliau,19:22,5:07,Night,Between dusk and predawn
+Rungan,4:28,5:28,Predawn,Hour before sunrise
+Rungan,5:29,6:29,Dawn,Hour after sunrise
+Rungan,6:30,10:59,Morning,Between dawn and midday
+Rungan,11:00,11:59,Midday,Hour centered on solar noon
+Rungan,12:00,16:31,Aftenoon,Between midday and predusk
+Rungan,16:32,17:31,Predusk,Hour before sunset
+Rungan,17:32,18:31,Dusk,Hour after sunset
+Rungan,18:32,4:27,Night,Between dusk and predawn
