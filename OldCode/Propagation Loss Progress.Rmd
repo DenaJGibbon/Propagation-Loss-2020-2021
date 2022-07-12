@@ -1,0 +1,35 @@
+---
+title: "Propagation Loss Progress"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## July 13th
+Ran over two habitat types from Rungan
+Want to add lines in the code to deal
+
+## August 25th
+Need to figure out how to deal with playbacks that span two recordings
+For Rungan it appears that there is only one sound file 
+If there is an appended number at the end of the file then can safely ignore
+
+Link to the full Rungan dataset: https://drive.google.com/drive/folders/1ndGVGCN4gDMh-lz6HQ97ZqxtCw16KSsB?usp=sharing
+
+Try to pull a few more from Google Drive?
+
+NOTES: Maybe check noise estimates for second noise value
+
+## Sept 21
+Was able to run iteratively over files from Google drive
+Isolated one set of paired playbacks to run test
+Need to comment out line 153
+Update Line 339 where characterization is added
+
+## November 22, 2021
+We need to think about the replicates with the 100 m over different times of day
+
+
+
