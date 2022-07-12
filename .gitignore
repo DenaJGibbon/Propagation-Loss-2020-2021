@@ -2,3 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
+*.wav
+.DS_Store
